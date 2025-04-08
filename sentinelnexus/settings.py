@@ -93,7 +93,6 @@ PROXMOX = {
     'host': os.environ.get('prx2.upec.edu.ec'),
     'user': os.environ.get('cvasquez'),
     'password': os.environ.get('cris.20034'),
-    'verify_ssl': os.environ.get('PROXMOX_VERIFY_SSL', 'False').lower() == 'true',
 }
 
 
