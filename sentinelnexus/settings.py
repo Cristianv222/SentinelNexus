@@ -90,10 +90,9 @@ DATABASES = {
 
 # Add these settings for Proxmox
 PROXMOX = {
-    'host': os.environ.get('PROXMOX_HOST', 'localhost'),
-    'user': os.environ.get('PROXMOX_USER', 'root@pam'),
-    'password': os.environ.get('PROXMOX_PASSWORD', ''),
-    'verify_ssl': os.environ.get('PROXMOX_VERIFY_SSL', 'False').lower() == 'true',
+    'host': os.environ.get('prx2.upec.edu.ec'),
+    'user': os.environ.get('cvasquez'),
+    'password': os.environ.get('cris.20034'),
 }
 
 
