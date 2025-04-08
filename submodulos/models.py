@@ -1,7 +1,4 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 class TipoRecurso(models.Model):
@@ -35,6 +32,27 @@ class SistemaOperativo(models.Model):
     def __str__(self):
         return f"{self.nombre} {self.version} ({self.arquitectura})"
 
+# Servidor Proxmox - Movido antes de Nodo para evitar problemas de dependencia
+class ProxmoxServer(models.Model):
+    """Modelo para almacenar información sobre servidores Proxmox"""
+    name = models.CharField(max_length=100, unique=True)
+    hostname = models.CharField(max_length=255)
+    username = models.CharField(max_length=100)
+    password = models.CharField(max_length=255)  # Idealmente, usa encriptación
+    verify_ssl = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Servidor Proxmox"
+        verbose_name_plural = "Servidores Proxmox"
+
+# Nodo en la infraestructura (relacionado con ProxmoxServer)
+# Manteniendo solo la versión más completa
 class Nodo(models.Model):
     STATUS_CHOICES = [
         ('activo', 'Activo'),
@@ -42,7 +60,8 @@ class Nodo(models.Model):
     ]
 
     nodo_id = models.AutoField(primary_key=True)
-    cluster_id = models.IntegerField()  # Consider using ForeignKey if there's a Cluster model
+    cluster_id = models.IntegerField(null=True, blank=True)  # Considerar modelo Cluster si aplica
+    proxmox_server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='nodos', null=True, blank=True)
     nombre = models.CharField(max_length=100)
     hostname = models.CharField(max_length=255)
     ip_address = models.GenericIPAddressField()
@@ -90,10 +109,18 @@ class RecursoFisico(models.Model):
     def __str__(self):
         return self.nombre
 
+# Máquina Virtual integrada con VirtualMachine
+# Manteniendo solo la versión más completa
 class MaquinaVirtual(models.Model):
     STATUS_CHOICES = [
-        ('activo', 'Activo'),
-        ('inactivo', 'Inactivo'),
+        ('running', 'En ejecución'),
+        ('stopped', 'Detenido'),
+        ('unknown', 'Desconocido')
+    ]
+
+    VM_TYPE_CHOICES = [
+        ('qemu', 'KVM'),
+        ('lxc', 'Contenedor LXC')
     ]
 
     vm_id = models.AutoField(primary_key=True)
@@ -102,17 +129,22 @@ class MaquinaVirtual(models.Model):
     nombre = models.CharField(max_length=100)
     hostname = models.CharField(max_length=255)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    estado = models.CharField(max_length=50, choices=STATUS_CHOICES, default='activo')
+    vmid = models.IntegerField()  # ID dentro de Proxmox
+    vm_type = models.CharField(max_length=10, choices=VM_TYPE_CHOICES, default='qemu')
+    estado = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unknown')
+    is_monitored = models.BooleanField(default=True)
+    last_checked = models.DateTimeField(null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'age_maquina_virtual'
+        unique_together = ('nodo', 'vmid')
         verbose_name = 'Máquina Virtual'
         verbose_name_plural = 'Máquinas Virtuales'
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} (ID: {self.vmid})"
 
 class AsignacionRecursosInicial(models.Model):
     asignacion_id = models.AutoField(primary_key=True)
@@ -259,86 +291,3 @@ class EstadisticaRecursos(models.Model):
 
     def __str__(self):
         return f"Estadística {self.estadistica_id} - {self.tipo_recurso} ({self.tipo_entidad})"
-    
-        # Servidor Proxmox
-class ProxmoxServer(models.Model):
-    """Modelo para almacenar información sobre servidores Proxmox"""
-    name = models.CharField(max_length=100, unique=True)
-    hostname = models.CharField(max_length=255)
-    username = models.CharField(max_length=100)
-    password = models.CharField(max_length=255)  # Idealmente, usa encriptación
-    verify_ssl = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = "Servidor Proxmox"
-        verbose_name_plural = "Servidores Proxmox"
-
-# Nodo en la infraestructura (ahora relacionado con ProxmoxServer)
-class Nodo(models.Model):
-    STATUS_CHOICES = [
-        ('activo', 'Activo'),
-        ('inactivo', 'Inactivo'),
-    ]
-
-    nodo_id = models.AutoField(primary_key=True)
-    cluster_id = models.IntegerField(null=True, blank=True)  # Considerar modelo Cluster si aplica
-    proxmox_server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='nodos', null=True, blank=True)
-    nombre = models.CharField(max_length=100)
-    hostname = models.CharField(max_length=255)
-    ip_address = models.GenericIPAddressField()
-    ubicacion = models.CharField(max_length=255, null=True, blank=True)
-    tipo_hardware = models.CharField(max_length=100, null=True, blank=True)
-    estado = models.CharField(max_length=50, choices=STATUS_CHOICES, default='activo')
-    ultimo_mantenimiento = models.DateTimeField(null=True, blank=True)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_actualizacion = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'age_nodo'
-        verbose_name = 'Nodo'
-        verbose_name_plural = 'Nodos'
-
-    def __str__(self):
-        return self.nombre
-
-# Máquina Virtual integrada con VirtualMachine
-class MaquinaVirtual(models.Model):
-    STATUS_CHOICES = [
-        ('running', 'En ejecución'),
-        ('stopped', 'Detenido'),
-        ('unknown', 'Desconocido')
-    ]
-
-    VM_TYPE_CHOICES = [
-        ('qemu', 'KVM'),
-        ('lxc', 'Contenedor LXC')
-    ]
-
-    vm_id = models.AutoField(primary_key=True)
-    nodo = models.ForeignKey(Nodo, on_delete=models.CASCADE, related_name='maquinas_virtuales')
-    sistema_operativo = models.ForeignKey('SistemaOperativo', on_delete=models.PROTECT)
-    nombre = models.CharField(max_length=100)
-    hostname = models.CharField(max_length=255)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    vmid = models.IntegerField()  # ID dentro de Proxmox
-    vm_type = models.CharField(max_length=10, choices=VM_TYPE_CHOICES, default='qemu')
-    estado = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unknown')
-    is_monitored = models.BooleanField(default=True)
-    last_checked = models.DateTimeField(null=True, blank=True)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_actualizacion = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'age_maquina_virtual'
-        unique_together = ('nodo', 'vmid')
-        verbose_name = 'Máquina Virtual'
-        verbose_name_plural = 'Máquinas Virtuales'
-
-    def __str__(self):
-        return f"{self.nombre} (ID: {self.vmid})"

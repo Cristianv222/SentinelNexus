@@ -370,3 +370,23 @@ def api_vm_status(request, node_name, vmid):
             'success': False,
             'message': str(e)
         })
+    
+@login_required
+def server_list(request):
+    """
+    Muestra una lista de los servidores Proxmox configurados.
+    """
+    try:
+        # Puedes obtener los servidores desde la base de datos o desde la configuración
+        proxmox = get_proxmox_connection()
+        nodes = proxmox.nodes.get()
+        
+        return render(request, 'server_list.html', {
+            'nodes': nodes
+        })
+    except Exception as e:
+        messages.error(request, f"Error al conectar con Proxmox: {str(e)}")
+        return render(request, 'server_list.html', {
+            'connection_error': True,
+            'error_message': str(e)
+        })  
