@@ -5,7 +5,7 @@ from . import views
 
 urlpatterns = [
     # Página principal que renderiza base.html
-    path('', TemplateView.as_view(template_name='base.html'), name='home'),
+    path('', TemplateView.as_view(template_name='dashboard.html'), name='home'),
     
     # URLs de administración
     path('admin/', admin.site.urls),
