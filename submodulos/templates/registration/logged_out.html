@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Cerrar Sesión - SentinelNexus{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="text-center">Sesión Cerrada</h3>
+                </div>
+                <div class="card-body">
+                    <p class="text-center">Has cerrado sesión exitosamente.</p>
+                    <div class="text-center">
+                        <a href="{% url 'login' %}" class="btn btn-primary">Iniciar sesión nuevamente</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

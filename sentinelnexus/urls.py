@@ -1,20 +1,23 @@
 from django.contrib import admin
 from django.views.generic.base import RedirectView, TemplateView
 from django.urls import path, include
+from django.contrib.auth.views import LoginView, LogoutView
 from . import views
 
 urlpatterns = [
-    # Página principal que renderiza base.html
-    path('', TemplateView.as_view(template_name='dashboard.html'), name='home'),
+    # Página principal redirige al dashboard
+    path('', RedirectView.as_view(url='/dashboard/', permanent=False), name='home'),
     
     # URLs de administración
     path('admin/', admin.site.urls),
     
     # URLs de autenticación
+    path('accounts/login/', LoginView.as_view(), name='login'),
+    path('accounts/logout/', LogoutView.as_view(), name='logout'),
     path('accounts/', include('django.contrib.auth.urls')),
-     path('servers/', views.server_list, name='server_list'),
     
-    # Dashboard y otras URLs
+    # Rutas de la aplicación
+    path('servers/', views.server_list, name='server_list'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('nodes/<str:node_name>/', views.node_detail, name='node_detail'),
     path('vms/<str:node_name>/<int:vmid>/', views.vm_detail, name='vm_detail'),

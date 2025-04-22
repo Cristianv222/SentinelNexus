@@ -2,131 +2,434 @@
 
 {% block title %}Dashboard - SentinelNexus{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-    <h1>Dashboard de Proxmox</h1>
+{% block extra_css %}
+<style>
+    body {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+    }
     
-    <div class="row mb-4">
+    .container-fluid {
+        background-color: #1a1a1a;
+        padding: 10px;
+        max-width: 100%;
+    }
+    
+    .card {
+        background-color: #252525;
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        color: #e0e0e0;
+        margin-bottom: 10px;
+    }
+    
+    .stat-card {
+        background: linear-gradient(45deg, #1e3c72, #2a5298);
+        color: white;
+        height: 100px;
+        padding: 10px;
+    }
+    
+    .stat-card .card-title {
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 0;
+    }
+    
+    .table-container {
+        background: #252525;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        padding: 10px;
+        margin-bottom: 15px;
+        overflow-x: auto;
+    }
+    
+    .table {
+        color: #e0e0e0;
+        font-size: 0.85rem;
+        margin-bottom: 0;
+    }
+    
+    .table thead th {
+        border-top: none;
+        background-color: #333;
+        font-weight: 600;
+        color: #e0e0e0;
+        border-color: #444;
+        padding: 8px 5px;
+        white-space: nowrap;
+    }
+    
+    .table td {
+        border-color: #444;
+        padding: 6px 5px;
+        vertical-align: middle;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: #333;
+        color: #fff !important;
+    }
+    
+    .table-hover tbody tr:hover td {
+        color: #fff !important;
+    }
+    
+    .table-hover tbody tr:hover .badge {
+        filter: brightness(1.2);
+    }
+    
+    .table-hover tbody tr:hover .small-text {
+        color: #e0e0e0 !important;
+    }
+    
+    .table-hover tbody tr:hover .resource-value {
+        color: #fff !important;
+    }
+    .badge {
+        padding: 0.3em 0.6em;
+        font-weight: 500;
+        font-size: 0.75rem;
+    }
+    
+    .btn-action {
+        padding: 0.2rem 0.5rem;
+        margin: 0 2px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+    }
+    
+    .ping-status {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 3px;
+    }
+    
+    .ping-good {
+        background-color: #28a745;
+    }
+    
+    .ping-bad {
+        background-color: #dc3545;
+    }
+    
+    .metric-card {
+        font-size: 0.75rem;
+        line-height: 1.2;
+    }
+    
+    .resource-value {
+        font-size: 0.8rem;
+        text-align: right;
+        display: inline-block;
+    }
+    
+    .metric-column {
+        width: 80px;
+    }
+    
+    h1.h2 {
+        font-size: 1.5rem;
+        margin-bottom: 15px;
+    }
+    
+    h2.h4 {
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+    }
+    
+    .error-card {
+        border-left: 5px solid #dc3545;
+    }
+    
+    .small-text {
+        font-size: 0.7rem;
+        color: #aaa;
+    }
+    
+    /* Columnas compactas */
+    .table .col-id { width: 50px; }
+    .table .col-name { min-width: 120px; }
+    .table .col-node { width: 80px; }
+    .table .col-type { width: 60px; }
+    .table .col-status { width: 80px; }
+    .table .col-ping { width: 70px; }
+    .table .col-cpu { width: 60px; }
+    .table .col-mem { width: 100px; }
+    .table .col-disk { width: 120px; }
+    .table .col-net { width: 90px; }
+    .table .col-actions { width: 80px; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-2">
+    {% if connection_error %}
+    <div class="error-container">
+        <div class="card error-card">
+            <div class="card-header bg-danger text-white py-2">
+                <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Error de Conexión con Proxmox</h4>
+            </div>
+            <div class="card-body">
+                {% if auth_error %}
+                <div class="alert alert-warning py-2">
+                    <h5><i class="fas fa-lock me-2"></i>Problema de Autenticación</h5>
+                    <p class="mb-2">No se pudo autenticar con el servidor Proxmox. Por favor, verifica:</p>
+                    <ul class="mb-2">
+                        <li>El nombre de usuario y contraseña sean correctos</li>
+                        <li>El usuario tenga permisos suficientes en Proxmox</li>
+                        <li>El formato del usuario sea correcto (ej: <code>root@pam</code>)</li>
+                    </ul>
+                    <div class="bg-dark p-2 rounded">
+                        <small>
+                            <strong>Host:</strong> <code>{{ PROXMOX_HOST|default:"No configurado" }}</code><br>
+                            <strong>Usuario:</strong> <code>{{ PROXMOX_USER|default:"No configurado" }}</code>
+                        </small>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="text-danger mb-3">
+                    <strong><i class="fas fa-info-circle me-2"></i>Error:</strong>
+                    <code>{{ error_message }}</code>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-sync-alt me-1"></i>Reintentar
+                    </a>
+                    {% if user.is_superuser %}
+                    <a href="{% url 'admin:index' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-cog me-1"></i>Admin
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h2 mb-0"><i class="fas fa-tachometer-alt me-2"></i>Dashboard de Proxmox</h1>
+        <button onclick="location.reload();" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-sync-alt me-1"></i>Actualizar
+        </button>
+    </div>
+    
+    <!-- Tarjetas de resumen -->
+    <div class="row mb-3">
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Resumen</h5>
-                    <p>Nodos: {{ nodes|length }}</p>
-                    <p>Máquinas Virtuales: {{ total_vms }}</p>
-                    <p>VMs en ejecución: {{ running_vms }}</p>
+            <div class="card stat-card">
+                <div class="card-body p-2">
+                    <h5 class="card-title"><i class="fas fa-server me-2"></i>Nodos</h5>
+                    <div class="stat-value">{{ nodes|length }}</div>
+                    <p class="mb-0 small">Total de nodos</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card" style="background: linear-gradient(45deg, #0f2027, #203a43);">
+                <div class="card-body p-2">
+                    <h5 class="card-title"><i class="fas fa-desktop me-2"></i>Máquinas Virtuales</h5>
+                    <div class="stat-value">{{ vms|length }}</div>
+                    <p class="mb-0 small">Total de VMs</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card" style="background: linear-gradient(45deg, #232526, #414345);">
+                <div class="card-body p-2">
+                    <h5 class="card-title"><i class="fas fa-play-circle me-2"></i>En Ejecución</h5>
+                    <div class="stat-value">{{ running_vms }}</div>
+                    <p class="mb-0 small">VMs activas</p>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="row mb-4">
-        <div class="col-12">
-            <h2>Nodos</h2>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Nombre</th>
-                            <th>Estado</th>
-                            <th>CPU</th>
-                            <th>Memoria</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for node in nodes %}
-                        <tr>
-                            <td>{{ node.node }}</td>
-                            <td>
-                                {% if node.status == 'online' %}
-                                <span class="badge bg-success">Online</span>
-                                {% else %}
-                                <span class="badge bg-danger">Offline</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ node.cpu|floatformat:2 }}%</td>
-                            <td>{{ node.mem|floatformat:2 }}%</td>
-                            <td>
-                                <a href="{% url 'node_detail' node_name=node.node %}" class="btn btn-sm btn-primary">
-                                    Ver detalles
-                                </a>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="5" class="text-center">No hay nodos disponibles</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <!-- Tabla de Nodos -->
+    <div class="table-container">
+        <h2 class="h4 mb-2"><i class="fas fa-server me-2"></i>Nodos del Cluster</h2>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Estado</th>
+                        <th>Ping</th>
+                        <th class="metric-column">CPU</th>
+                        <th class="metric-column">RAM</th>
+                        <th>Disco</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for node in nodes %}
+                    <tr>
+                        <td>
+                            <i class="fas fa-server me-1 text-primary"></i>
+                            {{ node.node }}
+                        </td>
+                        <td>
+                            {% if node.status == 'online' %}
+                            <span class="badge bg-success">Online</span>
+                            {% else %}
+                            <span class="badge bg-danger">Offline</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="ping-status ping-good"></span>
+                            {{ node.ping|default:"N/A" }} ms
+                        </td>
+                        <td>
+                            <span class="resource-value">{{ node.cpu|floatformat:1 }}%</span>
+                        </td>
+                        <td>
+                            <span class="resource-value">{{ node.mem|floatformat:1 }}%</span>
+                        </td>
+                        <td>
+                            <small>{{ node.disk_used|default:"0" }}/{{ node.disk_total|default:"0" }}GB</small>
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'node_detail' node_name=node.node %}" class="btn btn-sm btn-primary btn-action">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-3">
+                            <i class="fas fa-info-circle me-2"></i>No hay nodos disponibles
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
     
-    <div class="row">
-        <div class="col-12">
-            <h2>Máquinas Virtuales</h2>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nombre</th>
-                            <th>Nodo</th>
-                            <th>Tipo</th>
-                            <th>Estado</th>
-                            <th>CPU</th>
-                            <th>Memoria</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for vm in vms %}
-                        <tr>
-                            <td>{{ vm.vmid }}</td>
-                            <td>{{ vm.name }}</td>
-                            <td>{{ vm.node }}</td>
-                            <td>
-                                {% if vm.type == 'qemu' %}
-                                <span class="badge bg-info">KVM</span>
-                                {% else %}
-                                <span class="badge bg-secondary">LXC</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if vm.status == 'running' %}
-                                <span class="badge bg-success">Running</span>
-                                {% else %}
-                                <span class="badge bg-danger">Stopped</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ vm.cpu|default:"0"|floatformat:2 }}%</td>
-                            <td>{{ vm.mem|default:"0"|floatformat:2 }}%</td>
-                            <td>
-                                <a href="{% url 'vm_detail_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type %}" class="btn btn-sm btn-primary">
-                                    Ver
-                                </a>
-                                
-                                {% if vm.status == 'stopped' %}
-                                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='start' %}" class="btn btn-sm btn-success">
-                                    Iniciar
-                                </a>
-                                {% else %}
-                                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='stop' %}" class="btn btn-sm btn-danger">
-                                    Detener
-                                </a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="8" class="text-center">No hay máquinas virtuales disponibles</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <!-- Tabla de Máquinas Virtuales -->
+    <div class="table-container">
+        <h2 class="h4 mb-2"><i class="fas fa-desktop me-2"></i>Máquinas Virtuales</h2>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th class="col-id">ID</th>
+                        <th class="col-name">Nombre</th>
+                        <th class="col-node">Nodo</th>
+                        <th class="col-type">Tipo</th>
+                        <th class="col-status">Estado</th>
+                        <th class="col-ping">Ping</th>
+                        <th class="col-cpu">CPU</th>
+                        <th class="col-mem">RAM</th>
+                        <th class="col-disk">Disco</th>
+                        <th class="col-net">Red</th>
+                        <th class="col-actions">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vm in vms %}
+                    <tr>
+                        <td>{{ vm.vmid }}</td>
+                        <td>
+                            <i class="fas fa-desktop me-1 text-primary"></i>
+                            {{ vm.name }}
+                        </td>
+                        <td>{{ vm.node }}</td>
+                        <td>
+                            {% if vm.type == 'qemu' %}
+                            <span class="badge bg-info">KVM</span>
+                            {% else %}
+                            <span class="badge bg-secondary">LXC</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if vm.status == 'running' %}
+                            <span class="badge bg-success">Running</span>
+                            {% else %}
+                            <span class="badge bg-danger">Stopped</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if vm.status == 'running' %}
+                            <span class="ping-status ping-good"></span>
+                            {{ vm.ping|default:"N/A" }}ms
+                            {% else %}
+                            <span class="ping-status ping-bad"></span>
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="resource-value">{{ vm.cpu|default:"0"|floatformat:1 }}%</span>
+                        </td>
+                        <td>
+                            <span class="resource-value">{{ vm.mem|default:"0"|floatformat:1 }}%</span>
+                            <div class="small-text">{{ vm.mem_used|default:"0" }}/{{ vm.mem_total|default:"0" }}MB</div>
+                        </td>
+                        <td>
+                            <div class="small-text">R:{{ vm.disk_read|default:"0"|floatformat:1 }}MB/s</div>
+                            <div class="small-text">W:{{ vm.disk_write|default:"0"|floatformat:1 }}MB/s</div>
+                            <div class="small-text">{{ vm.disk_used|default:"0" }}/{{ vm.disk_total|default:"0" }}GB</div>
+                        </td>
+                        <td>
+                            <div class="small-text">↓{{ vm.net_in|default:"0"|floatformat:1 }}Mbps</div>
+                            <div class="small-text">↑{{ vm.net_out|default:"0"|floatformat:1 }}Mbps</div>
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'vm_detail_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type %}" 
+                               class="btn btn-sm btn-primary btn-action" title="Ver detalles">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            
+                            {% if vm.status == 'stopped' %}
+                            <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='start' %}" 
+                               class="btn btn-sm btn-success btn-action" title="Iniciar">
+                                <i class="fas fa-play"></i>
+                            </a>
+                            {% else %}
+                            <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='stop' %}" 
+                               class="btn btn-sm btn-danger btn-action" title="Detener">
+                                <i class="fas fa-stop"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="11" class="text-center py-3">
+                            <i class="fas fa-info-circle me-2"></i>No hay máquinas virtuales disponibles
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tooltip para los botones
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip()
+    });
+    
+    // Auto-actualización cada 30 segundos
+    setTimeout(function() {
+        location.reload();
+    }, 30000);
+</script>
 {% endblock %}
