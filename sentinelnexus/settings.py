@@ -99,7 +99,7 @@ PROXMOX = {
 }
 
 # Configuración de Grafana (opcional, se pueden usar valores predeterminados)
-GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
+GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:1937')
 GRAFANA_DASHBOARD_ID = os.environ.get('GRAFANA_DASHBOARD_ID', 'proxmox-monitoring')
 
 # Verificación de que la configuración de Proxmox esté completa
