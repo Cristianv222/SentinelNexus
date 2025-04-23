@@ -9,6 +9,13 @@ import logging
 import time
 import random
 from datetime import datetime, timedelta
+from submodulos.models import (
+    ProxmoxServer, Nodo, SistemaOperativo, MaquinaVirtual,
+    TipoRecurso, RecursoFisico, AsignacionRecursosInicial,
+    AuditoriaPeriodo, AuditoriaRecursosCabecera, AuditoriaRecursosDetalle
+)
+import threading
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +58,408 @@ def get_proxmox_connection():
     except Exception as e:
         logger.error(f"Error al conectar con Proxmox: {str(e)}")
         raise Exception(f"Error al conectar con Proxmox en {host}: {str(e)}")
+
+# Clase para sincronizar datos de Proxmox con la base de datos
+class ProxmoxSynchronizer:
+    def __init__(self, proxmox_server_id=None):
+        """
+        Inicializa el sincronizador con un servidor Proxmox específico o utiliza
+        la configuración global si no se proporciona uno.
+        """
+        if proxmox_server_id:
+            try:
+                server = ProxmoxServer.objects.get(id=proxmox_server_id)
+                self.proxmox = ProxmoxAPI(
+                    server.hostname,
+                    user=server.username,
+                    password=server.password,
+                    verify_ssl=server.verify_ssl
+                )
+                self.server = server
+            except ProxmoxServer.DoesNotExist:
+                raise ValueError(f"Servidor Proxmox con ID {proxmox_server_id} no encontrado")
+        else:
+            # Usar configuración global de settings.py
+            self.proxmox = get_proxmox_connection()
+            # Crear o actualizar el registro del servidor en la base de datos
+            self.server, created = ProxmoxServer.objects.update_or_create(
+                hostname=settings.PROXMOX['host'].split(':')[0],  # Quitar puerto si existe
+                defaults={
+                    'name': f"Proxmox-{settings.PROXMOX['host'].split(':')[0]}",
+                    'username': settings.PROXMOX['user'],
+                    'password': settings.PROXMOX['password'],  # Considera encriptar esto
+                    'verify_ssl': settings.PROXMOX['verify_ssl'],
+                    'is_active': True
+                }
+            )
+
+    @transaction.atomic
+    def sync_all(self):
+        """
+        Sincroniza todos los datos: nodos, recursos y máquinas virtuales.
+        Usa una transacción para garantizar la integridad de los datos.
+        """
+        self.sync_nodes()
+        self.sync_resource_types()
+        self.sync_vms()
+        return {
+            'status': 'success',
+            'message': 'Sincronización completada correctamente'
+        }
+
+    def sync_nodes(self):
+        """
+        Sincroniza información de nodos desde Proxmox.
+        """
+        nodes = self.proxmox.nodes.get()
+        for node_data in nodes:
+            # Obtener información detallada del nodo
+            node_detail = self.proxmox.nodes(node_data['node']).status.get()
+            
+            # Crear o actualizar el nodo en la base de datos
+            node, created = Nodo.objects.update_or_create(
+                nombre=node_data['node'],
+                proxmox_server=self.server,
+                defaults={
+                    'hostname': node_data['node'],
+                    'ip_address': node_detail.get('ip', '0.0.0.0'),  # Obtener IP real si está disponible
+                    'estado': 'activo' if node_data['status'] == 'online' else 'inactivo',
+                    'tipo_hardware': node_detail.get('cpuinfo', {}).get('model', 'Desconocido')
+                }
+            )
+            
+            # Sincronizar recursos del nodo
+            self.sync_node_resources(node, node_detail)
+
+    def sync_resource_types(self):
+        """
+        Asegura que existan los tipos de recursos básicos en la base de datos.
+        """
+        resource_types = [
+            {'nombre': 'CPU', 'unidad_medida': 'Cores', 'descripcion': 'Procesador'},
+            {'nombre': 'RAM', 'unidad_medida': 'MB', 'descripcion': 'Memoria RAM'},
+            {'nombre': 'Almacenamiento', 'unidad_medida': 'GB', 'descripcion': 'Espacio de disco'}
+        ]
+        
+        for rt in resource_types:
+            TipoRecurso.objects.get_or_create(
+                nombre=rt['nombre'],
+                defaults={
+                    'unidad_medida': rt['unidad_medida'],
+                    'descripcion': rt['descripcion']
+                }
+            )
+
+    def sync_node_resources(self, node, node_detail):
+        """
+        Sincroniza los recursos físicos de un nodo específico.
+        """
+        # Obtener tipos de recursos
+        cpu_type = TipoRecurso.objects.get(nombre='CPU')
+        ram_type = TipoRecurso.objects.get(nombre='RAM')
+        storage_type = TipoRecurso.objects.get(nombre='Almacenamiento')
+        
+        # Sincronizar CPU
+        cpu_cores = node_detail.get('cpuinfo', {}).get('cpus', 0)
+        RecursoFisico.objects.update_or_create(
+            nodo=node,
+            tipo_recurso=cpu_type,
+            defaults={
+                'nombre': f"CPU-{node.nombre}",
+                'capacidad_total': cpu_cores,
+                'capacidad_disponible': cpu_cores - node_detail.get('cpu', 0),
+                'estado': 'activo'
+            }
+        )
+        
+        # Sincronizar RAM (convertir de bytes a MB)
+        total_ram = node_detail.get('memory', {}).get('total', 0) / (1024 * 1024)
+        used_ram = node_detail.get('memory', {}).get('used', 0) / (1024 * 1024)
+        RecursoFisico.objects.update_or_create(
+            nodo=node,
+            tipo_recurso=ram_type,
+            defaults={
+                'nombre': f"RAM-{node.nombre}",
+                'capacidad_total': total_ram,
+                'capacidad_disponible': total_ram - used_ram,
+                'estado': 'activo'
+            }
+        )
+        
+        # Sincronizar almacenamiento (obtener de storages)
+        try:
+            storages = self.proxmox.nodes(node.nombre).storage.get()
+            total_storage = 0
+            available_storage = 0
+            
+            for storage in storages:
+                if storage.get('active', 0) == 1:
+                    total_storage += storage.get('total', 0) / (1024 * 1024 * 1024)  # Convertir a GB
+                    available_storage += storage.get('avail', 0) / (1024 * 1024 * 1024)
+            
+            RecursoFisico.objects.update_or_create(
+                nodo=node,
+                tipo_recurso=storage_type,
+                defaults={
+                    'nombre': f"Storage-{node.nombre}",
+                    'capacidad_total': total_storage,
+                    'capacidad_disponible': available_storage,
+                    'estado': 'activo'
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error al sincronizar almacenamiento para nodo {node.nombre}: {str(e)}")
+
+    def sync_vms(self):
+        """
+        Sincroniza todas las máquinas virtuales de todos los nodos.
+        """
+        # Sincronizar sistemas operativos comunes primero
+        self.sync_common_os()
+        
+        # Obtener todos los nodos
+        nodes = self.proxmox.nodes.get()
+        
+        for node_data in nodes:
+            node_name = node_data['node']
+            try:
+                node = Nodo.objects.get(nombre=node_name, proxmox_server=self.server)
+                
+                # Obtener todas las VMs (QEMU/KVM)
+                try:
+                    qemu_vms = self.proxmox.nodes(node_name).qemu.get()
+                    for vm in qemu_vms:
+                        self.process_vm(node, vm, 'qemu')
+                except Exception as e:
+                    logger.error(f"Error al obtener VMs QEMU en nodo {node_name}: {str(e)}")
+                
+                # Obtener todos los contenedores LXC
+                try:
+                    lxc_containers = self.proxmox.nodes(node_name).lxc.get()
+                    for container in lxc_containers:
+                        self.process_vm(node, container, 'lxc')
+                except Exception as e:
+                    logger.error(f"Error al obtener contenedores LXC en nodo {node_name}: {str(e)}")
+                    
+            except Nodo.DoesNotExist:
+                logger.error(f"Nodo {node_name} no encontrado en la base de datos.")
+
+    def sync_common_os(self):
+        """
+        Asegura que existan los sistemas operativos comunes en la base de datos.
+        """
+        common_os = [
+            {'nombre': 'Debian', 'version': '11', 'tipo': 'Linux', 'arquitectura': 'x86_64'},
+            {'nombre': 'Ubuntu', 'version': '22.04', 'tipo': 'Linux', 'arquitectura': 'x86_64'},
+            {'nombre': 'CentOS', 'version': '8', 'tipo': 'Linux', 'arquitectura': 'x86_64'},
+            {'nombre': 'Windows', 'version': '10', 'tipo': 'Windows', 'arquitectura': 'x86_64'},
+            {'nombre': 'Windows', 'version': 'Server 2019', 'tipo': 'Windows', 'arquitectura': 'x86_64'},
+            {'nombre': 'Unknown', 'version': 'Unknown', 'tipo': 'Unknown', 'arquitectura': 'x86_64'},
+        ]
+        
+        for os_data in common_os:
+            SistemaOperativo.objects.get_or_create(
+                nombre=os_data['nombre'],
+                version=os_data['version'],
+                arquitectura=os_data['arquitectura'],
+                defaults={
+                    'tipo': os_data['tipo'],
+                    'activo': True
+                }
+            )
+
+    def process_vm(self, node, vm_data, vm_type):
+        """
+        Procesa una máquina virtual o contenedor y lo sincroniza con la base de datos.
+        """
+        vmid = vm_data.get('vmid')
+        name = vm_data.get('name', f"VM-{vmid}")
+        status = vm_data.get('status', 'unknown')
+        
+        # Determinar el sistema operativo basado en la descripción o tipo
+        os_type = self.determine_os(vm_data)
+        
+        # Crear o actualizar la máquina virtual
+        vm, created = MaquinaVirtual.objects.update_or_create(
+            nodo=node,
+            vmid=vmid,
+            defaults={
+                'nombre': name,
+                'hostname': name,
+                'sistema_operativo': os_type,
+                'vm_type': vm_type,
+                'estado': status,
+                'is_monitored': True,
+                'last_checked': datetime.now()
+            }
+        )
+        
+        # Si es una VM nueva, asignarle recursos iniciales
+        if created:
+            self.assign_initial_resources(node, vm, vm_data, vm_type)
+        
+        return vm
+
+    def determine_os(self, vm_data):
+        """
+        Determina el sistema operativo basado en los datos de la VM.
+        """
+        # Intentar deducir del campo 'ostype' o 'template'
+        os_info = vm_data.get('ostype', '') or vm_data.get('template', '')
+        
+        # Mapeo simple basado en palabras clave
+        if 'win' in os_info.lower():
+            if 'server' in os_info.lower():
+                return SistemaOperativo.objects.get(nombre='Windows', version='Server 2019')
+            return SistemaOperativo.objects.get(nombre='Windows', version='10')
+        elif 'ubuntu' in os_info.lower():
+            return SistemaOperativo.objects.get(nombre='Ubuntu', version='22.04')
+        elif 'debian' in os_info.lower():
+            return SistemaOperativo.objects.get(nombre='Debian', version='11')
+        elif 'cent' in os_info.lower():
+            return SistemaOperativo.objects.get(nombre='CentOS', version='8')
+        
+        # Sistema operativo desconocido por defecto
+        return SistemaOperativo.objects.get(nombre='Unknown', version='Unknown')
+
+    def assign_initial_resources(self, node, vm, vm_data, vm_type):
+        """
+        Asigna recursos iniciales a una máquina virtual recién creada.
+        """
+        try:
+            # Obtener recursos del nodo
+            cpu_resource = RecursoFisico.objects.get(nodo=node, tipo_recurso__nombre='CPU')
+            ram_resource = RecursoFisico.objects.get(nodo=node, tipo_recurso__nombre='RAM')
+            storage_resource = RecursoFisico.objects.get(nodo=node, tipo_recurso__nombre='Almacenamiento')
+            
+            # Obtener detalles de la VM para asignar recursos precisos
+            if vm_type == 'qemu':
+                try:
+                    vm_config = self.proxmox.nodes(node.nombre).qemu(vm.vmid).config.get()
+                    
+                    # Asignar CPU
+                    cpu_cores = vm_config.get('sockets', 1) * vm_config.get('cores', 1)
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=cpu_resource,
+                        cantidad_asignada=cpu_cores
+                    )
+                    
+                    # Asignar RAM (convertir a MB)
+                    ram_mb = vm_config.get('memory', 512)
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=ram_resource,
+                        cantidad_asignada=ram_mb
+                    )
+                    
+                    # Asignar almacenamiento (estimado)
+                    storage_gb = 20  # Valor por defecto
+                    for key, value in vm_config.items():
+                        if key.startswith('scsi') or key.startswith('virtio') or key.startswith('ide'):
+                            if 'size' in str(value):
+                                # Convertir de formato Proxmox (ej: 32G) a GB
+                                size_str = str(value).split('size=')[1].split(',')[0]
+                                if 'G' in size_str:
+                                    storage_gb += float(size_str.replace('G', ''))
+                                elif 'T' in size_str:
+                                    storage_gb += float(size_str.replace('T', '')) * 1024
+                    
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=storage_resource,
+                        cantidad_asignada=storage_gb
+                    )
+                except Exception as e:
+                    logger.error(f"Error al obtener config de VM {vm.nombre}: {str(e)}")
+                    # Asignar valores por defecto
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=cpu_resource,
+                        cantidad_asignada=1
+                    )
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=ram_resource,
+                        cantidad_asignada=512
+                    )
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=storage_resource,
+                        cantidad_asignada=20
+                    )
+            
+            # Proceso similar para LXC, con ajustes específicos para contenedores
+            elif vm_type == 'lxc':
+                try:
+                    lxc_config = self.proxmox.nodes(node.nombre).lxc(vm.vmid).config.get()
+                    
+                    # Asignar CPU
+                    cpu_cores = lxc_config.get('cores', 1)
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=cpu_resource,
+                        cantidad_asignada=cpu_cores
+                    )
+                    
+                    # Asignar RAM (convertir a MB)
+                    ram_mb = lxc_config.get('memory', 512)
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=ram_resource,
+                        cantidad_asignada=ram_mb
+                    )
+                    
+                    # Asignar almacenamiento
+                    storage_gb = 8  # Valor por defecto
+                    if 'rootfs' in lxc_config and 'size' in str(lxc_config.get('rootfs', '')):
+                        storage_str = str(lxc_config.get('rootfs')).split('size=')[1].split(',')[0]
+                        if 'G' in storage_str:
+                            storage_gb = float(storage_str.replace('G', ''))
+                        elif 'T' in storage_str:
+                            storage_gb = float(storage_str.replace('T', '')) * 1024
+                    
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=storage_resource,
+                        cantidad_asignada=storage_gb
+                    )
+                except Exception as e:
+                    logger.error(f"Error al obtener config de LXC {vm.nombre}: {str(e)}")
+                    # Asignar valores por defecto
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=cpu_resource,
+                        cantidad_asignada=1
+                    )
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=ram_resource,
+                        cantidad_asignada=512
+                    )
+                    AsignacionRecursosInicial.objects.create(
+                        maquina_virtual=vm,
+                        recurso=storage_resource,
+                        cantidad_asignada=8
+                    )
+        
+        except Exception as e:
+            logger.error(f"Error al asignar recursos iniciales para VM {vm.nombre}: {str(e)}")
+
+# Función para sincronizar datos desde la vista
+def sync_proxmox_data(server_id=None):
+    """
+    Función para sincronizar datos de Proxmox desde vistas o comandos.
+    """
+    try:
+        synchronizer = ProxmoxSynchronizer(server_id)
+        result = synchronizer.sync_all()
+        return result
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': f"Error al sincronizar datos: {str(e)}"
+        }
 
 @login_required
 def dashboard(request):
@@ -254,12 +663,42 @@ def dashboard(request):
         
         # Calcular VMs en ejecución
         running_vms = sum(1 for vm in vms if vm.get('status') == 'running')
+        
+        # Sincronizar datos con la base de datos
+        try:
+            # Si ha pasado más de 1 hora desde la última sincronización, realizar una nueva
+            # Puedes ajustar esta lógica según tus necesidades
+            last_sync = ProxmoxServer.objects.filter(is_active=True).order_by('-updated_at').first()
+            sync_needed = True
+            
+            if last_sync and last_sync.updated_at:
+                time_since_last_sync = datetime.now() - last_sync.updated_at.replace(tzinfo=None)
+                if time_since_last_sync.total_seconds() < 3600:  # Menos de 1 hora
+                    sync_needed = False
+            
+            if sync_needed:
+                logger.info("Iniciando sincronización de datos con la base de datos...")
+                sync_result = sync_proxmox_data()
+                if sync_result['status'] == 'success':
+                    logger.info("Sincronización completada correctamente")
+                else:
+                    logger.error(f"Error en la sincronización: {sync_result['message']}")
+        except Exception as sync_error:
+            logger.error(f"Error al intentar sincronizar datos: {str(sync_error)}")
+            
+        # Obtener datos de la base de datos para mostrar en el dashboard
+        db_nodes = Nodo.objects.all().count()
+        db_vms = MaquinaVirtual.objects.all().count()
+        db_resources = RecursoFisico.objects.all()
             
         return render(request, 'dashboard.html', {
             'nodes': nodes,
             'vms': vms,
             'running_vms': running_vms,
-            'cluster_status': cluster_status
+            'cluster_status': cluster_status,
+            'db_nodes': db_nodes,
+            'db_vms': db_vms,
+            'db_resources': db_resources
         })
     
     except AuthenticationError as e:
@@ -281,6 +720,22 @@ def dashboard(request):
             'PROXMOX_HOST': settings.PROXMOX.get('host', ''),
             'PROXMOX_USER': settings.PROXMOX.get('user', '')
         })
+
+@login_required
+def sync_proxmox(request):
+    """
+    Vista para sincronizar datos de Proxmox
+    """
+    if request.method == 'POST':
+        server_id = request.POST.get('server_id')
+        result = sync_proxmox_data(server_id)
+        
+        if result['status'] == 'success':
+            messages.success(request, result['message'])
+        else:
+            messages.error(request, result['message'])
+    
+    return redirect('dashboard')
 
 @login_required
 def node_detail(request, node_name):
@@ -332,12 +787,25 @@ def node_detail(request, node_name):
         except Exception as e:
             logger.warning(f"Error al obtener información de red: {str(e)}")
         
+        # Obtener datos del nodo desde la base de datos
+        try:
+            db_node = Nodo.objects.get(nombre=node_name)
+            db_resources = RecursoFisico.objects.filter(nodo=db_node)
+            db_vms = MaquinaVirtual.objects.filter(nodo=db_node)
+        except Nodo.DoesNotExist:
+            db_node = None
+            db_resources = []
+            db_vms = []
+        
         return render(request, 'node_detail.html', {
             'node_name': node_name,
             'node_status': node_status,
             'vms': vms,
             'storage_info': storage_info,
-            'network_info': network_info
+            'network_info': network_info,
+            'db_node': db_node,
+            'db_resources': db_resources,
+            'db_vms': db_vms
         })
     except Exception as e:
         messages.error(request, f"Error al obtener detalles del nodo: {str(e)}")
@@ -398,13 +866,24 @@ def vm_detail(request, node_name, vmid, vm_type=None):
         except Exception as e:
             logger.warning(f"Error al obtener historial de tareas: {str(e)}")
         
+        # Obtener datos de la VM desde la base de datos
+        try:
+            db_node = Nodo.objects.get(nombre=node_name)
+            db_vm = MaquinaVirtual.objects.get(nodo=db_node, vmid=vmid)
+            db_resources = AsignacionRecursosInicial.objects.filter(maquina_virtual=db_vm)
+        except (Nodo.DoesNotExist, MaquinaVirtual.DoesNotExist):
+            db_vm = None
+            db_resources = []
+        
         return render(request, 'vm_detail.html', {
             'node_name': node_name,
             'vmid': vmid,
             'vm_type': vm_type,
             'vm_status': vm_status,
             'vm_config': vm_config,
-            'tasks': tasks
+            'tasks': tasks,
+            'db_vm': db_vm,
+            'db_resources': db_resources
         })
     except Exception as e:
         messages.error(request, f"Error al obtener detalles de la VM: {str(e)}")
@@ -482,6 +961,22 @@ def vm_action(request, node_name, vmid, action, vm_type=None):
             messages.error(request, f"Acción '{action}' no soportada para {vm_type}")
         else:
             messages.success(request, f"Acción '{action}' iniciada correctamente. UPID: {result}")
+            
+            # Actualizar estado en la base de datos
+            try:
+                db_node = Nodo.objects.get(nombre=node_name)
+                db_vm = MaquinaVirtual.objects.get(nodo=db_node, vmid=vmid)
+                
+                # Establecer el estado según la acción
+                if action == 'start':
+                    db_vm.estado = 'running'
+                elif action in ['stop', 'shutdown']:
+                    db_vm.estado = 'stopped'
+                
+                db_vm.last_checked = datetime.now()
+                db_vm.save()
+            except (Nodo.DoesNotExist, MaquinaVirtual.DoesNotExist) as db_error:
+                logger.warning(f"No se pudo actualizar el estado en BD: {str(db_error)}")
         
         # Si es una petición AJAX, devolver JSON
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -653,15 +1148,23 @@ def server_list(request):
     Muestra una lista de los servidores Proxmox configurados.
     """
     try:
-        # Puedes obtener los servidores desde la base de datos o desde la configuración
-        proxmox = get_proxmox_connection()
-        nodes = proxmox.nodes.get()
+        # Obtener servidores desde la base de datos
+        proxmox_servers = ProxmoxServer.objects.all()
+        
+        # Obtener información de Proxmox si es posible
+        nodes = []
+        try:
+            proxmox = get_proxmox_connection()
+            nodes = proxmox.nodes.get()
+        except Exception as e:
+            logger.warning(f"Error al obtener nodos de Proxmox: {str(e)}")
         
         return render(request, 'server_list.html', {
+            'proxmox_servers': proxmox_servers,
             'nodes': nodes
         })
     except Exception as e:
-        messages.error(request, f"Error al conectar con Proxmox: {str(e)}")
+        messages.error(request, f"Error al obtener lista de servidores: {str(e)}")
         return render(request, 'server_list.html', {
             'connection_error': True,
             'error_message': str(e)
@@ -798,6 +1301,29 @@ def api_vm_metrics(request, node_name, vmid):
                 disk_history = []
                 net_history = []
                 timestamps = []
+        
+        # Actualizar datos en la base de datos
+        try:
+            db_node = Nodo.objects.get(nombre=node_name)
+            db_vm, created = MaquinaVirtual.objects.get_or_create(
+                nodo=db_node,
+                vmid=vmid,
+                defaults={
+                    'nombre': vm_status.get('name', f"VM-{vmid}"),
+                    'hostname': vm_status.get('name', f"VM-{vmid}"),
+                    'vm_type': vm_type,
+                    'estado': vm_status.get('status', 'unknown'),
+                    'is_monitored': True,
+                    'last_checked': datetime.now()
+                }
+            )
+            if not created:
+                db_vm.estado = vm_status.get('status', 'unknown')
+                db_vm.last_checked = datetime.now()
+                db_vm.save()
+                
+        except Exception as db_error:
+            logger.warning(f"Error al actualizar datos de VM en BD: {str(db_error)}")
         
         return JsonResponse({
             'success': True,
@@ -960,6 +1486,27 @@ def api_dashboard_metrics(request):
         # Calcular VMs en ejecución
         running_vms = sum(1 for vm in vms_data if vm.get('status') == 'running')
         
+        # Actualizar datos en la base de datos
+        try:
+            # Sincronizar nodos y VMs si es necesario
+            sync_needed = False
+            last_sync = ProxmoxServer.objects.filter(is_active=True).order_by('-updated_at').first()
+            
+            if last_sync and last_sync.updated_at:
+                time_since_last_sync = datetime.now() - last_sync.updated_at.replace(tzinfo=None)
+                if time_since_last_sync.total_seconds() > 7200:  # Más de 2 horas
+                    sync_needed = True
+            else:
+                sync_needed = True
+                
+            if sync_needed:
+                logger.info("Sincronizando datos con la base de datos desde api_dashboard_metrics...")
+                sync_thread = threading.Thread(target=sync_proxmox_data)
+                sync_thread.daemon = True
+                sync_thread.start()
+        except Exception as sync_error:
+            logger.error(f"Error al programar sincronización: {str(sync_error)}")
+        
         return JsonResponse({
             'success': True,
             'timestamp': int(time.time()),
@@ -997,8 +1544,64 @@ def metrics_dashboard(request):
         except Exception as e:
             logger.warning(f"Error al obtener los nodos para el dashboard de métricas: {str(e)}")
         
+        # Obtener todas las VMs para el selector
+        vms = []
+        try:
+            # Obtener VMs de la base de datos
+            db_vms = MaquinaVirtual.objects.all().select_related('nodo', 'sistema_operativo')
+            
+            for vm in db_vms:
+                vms.append({
+                    'vmid': vm.vmid,
+                    'name': vm.nombre,
+                    'node': vm.nodo.nombre,
+                    'type': vm.vm_type,
+                    'status': vm.estado,
+                    'os': str(vm.sistema_operativo)
+                })
+        except Exception as e:
+            logger.warning(f"Error al obtener VMs de la base de datos: {str(e)}")
+            
+            # Si falla la BD, intentar obtener desde Proxmox directamente
+            for node in nodes:
+                node_name = node['node']
+                try:
+                    qemu_vms = proxmox.nodes(node_name).qemu.get()
+                    for vm in qemu_vms:
+                        vms.append({
+                            'vmid': vm['vmid'],
+                            'name': vm.get('name', f"VM {vm['vmid']}"),
+                            'node': node_name,
+                            'type': 'qemu',
+                            'status': vm.get('status', 'unknown')
+                        })
+                except Exception as e:
+                    logger.warning(f"Error al obtener VMs QEMU del nodo {node_name}: {str(e)}")
+                
+                try:
+                    lxc_containers = proxmox.nodes(node_name).lxc.get()
+                    for container in lxc_containers:
+                        vms.append({
+                            'vmid': container['vmid'],
+                            'name': container.get('name', f"CT {container['vmid']}"),
+                            'node': node_name,
+                            'type': 'lxc',
+                            'status': container.get('status', 'unknown')
+                        })
+                except Exception as e:
+                    logger.warning(f"Error al obtener contenedores LXC del nodo {node_name}: {str(e)}")
+        
+        # Obtener estadísticas generales desde la base de datos
+        db_stats = {
+            'total_nodes': Nodo.objects.count(),
+            'total_vms': MaquinaVirtual.objects.count(),
+            'recursos': RecursoFisico.objects.all().select_related('nodo', 'tipo_recurso').count()
+        }
+        
         return render(request, 'metrics_dashboard.html', {
             'nodes': nodes,
+            'vms': vms,
+            'db_stats': db_stats
         })
     except Exception as e:
         messages.error(request, f"Error al cargar el dashboard de métricas: {str(e)}")
@@ -1286,7 +1889,8 @@ def api_metrics(request):
                             # Calcular uso actual para top VMs
                             current_cpu = container_status.get('cpu', 0) * 100
                             current_mem = container_status.get('mem', 0) / container_status.get('maxmem', 1) * 100
-# Añadir a la lista de top VMs
+                            
+                            # Añadir a la lista de top VMs
                             metrics_data['top_vms'].append({
                                 'id': container['vmid'],
                                 'name': container_name,

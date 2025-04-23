@@ -38,4 +38,5 @@ urlpatterns = [
     path('metrics/', views.metrics_dashboard, name='metrics_dashboard'),
     path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
     path('api/metrics/', views.api_metrics, name='api_metrics'),
+    path('sync-proxmox/', views.sync_proxmox, name='sync_proxmox'),
 ]

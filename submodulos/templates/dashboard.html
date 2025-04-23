@@ -751,6 +751,56 @@
     </div>
     {% endif %}
 </div>
+<!-- Physical Resources Table -->
+<div class="table-container">
+    <h2 class="h4 mb-3"><i class="fas fa-microchip me-2"></i>Recursos Físicos</h2>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nodo</th>
+                    <th>Tipo</th>
+                    <th>Nombre</th>
+                    <th>Capacidad Total</th>
+                    <th>Disponible</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for recurso in db_resources %}
+                <tr>
+                    <td>{{ recurso.nodo.nombre }}</td>
+                    <td>
+                        {% if recurso.tipo_recurso.nombre == 'CPU' %}
+                        <span class="badge badge-tomate">CPU</span>
+                        {% elif recurso.tipo_recurso.nombre == 'RAM' %}
+                        <span class="badge badge-amarillo">RAM</span>
+                        {% else %}
+                        <span class="badge badge-oscuro">{{ recurso.tipo_recurso.nombre }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ recurso.nombre }}</td>
+                    <td>{{ recurso.capacidad_total }} {{ recurso.tipo_recurso.unidad_medida }}</td>
+                    <td>{{ recurso.capacidad_disponible }} {{ recurso.tipo_recurso.unidad_medida }}</td>
+                    <td>
+                        {% if recurso.estado == 'activo' %}
+                        <span class="badge bg-success">Activo</span>
+                        {% else %}
+                        <span class="badge bg-danger">Inactivo</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-3">
+                        <i class="fas fa-info-circle me-2"></i>No hay recursos físicos disponibles. Sincronice con la base de datos primero.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
