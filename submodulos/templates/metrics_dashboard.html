@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Métricas - SentinelNexus{% endblock %}
+{% block title %}Dashboard de Monitoreo - SentinelNexus{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -9,53 +9,33 @@
         color: #e0e0e0;
     }
     
-    .chart-container {
-        background-color: #252525;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 20px;
-        height: 300px;
-    }
-    
     .metric-card {
         background-color: #252525;
         border-radius: 10px;
-        padding: 15px;
+        padding: 20px;
         margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     }
     
     .metric-title {
-        font-size: 0.9rem;
+        font-size: 1rem;
         color: #aaa;
         margin-bottom: 10px;
     }
     
     .metric-value {
-        font-size: 2rem;
+        font-size: 2.5rem;
         font-weight: bold;
+        color: #fff;
     }
     
-    .filter-container {
+    .chart-container {
+        background-color: #252525;
+        border-radius: 10px;
+        padding: 20px;
         margin-bottom: 20px;
-    }
-    
-    .filter-btn {
-        background: #333;
-        border: none;
-        color: #e0e0e0;
-        padding: 8px 15px;
-        border-radius: 20px;
-        margin-right: 5px;
-        transition: all 0.2s;
-    }
-    
-    .filter-btn:hover {
-        background: #5c5b5bb0;
-    }
-    
-    .filter-btn.active {
-        background: #FF5722;
-        color: white;
+        height: 300px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     }
 </style>
 {% endblock %}
@@ -63,49 +43,45 @@
 {% block content %}
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Dashboard de Métricas</h1>
+        <h1>Dashboard de Monitoreo</h1>
         <div>
-            <span class="me-3 text-muted small">
-                <i class="fas fa-clock me-1"></i>Última actualización: <span id="last-update"></span>
+            <span class="me-3 text-muted">
+                <i class="fas fa-clock me-1"></i>Última actualización: <span id="last-update">-</span>
             </span>
-            <button id="refresh-btn" class="btn btn-primary btn-sm">
+            <button id="refresh-btn" class="btn btn-primary ms-3">
                 <i class="fas fa-sync-alt me-1"></i>Actualizar
             </button>
         </div>
     </div>
     
-    <!-- Filtros de tiempo -->
-    <div class="filter-container">
-        <button class="filter-btn active" data-timeframe="hour">Última hora</button>
-        <button class="filter-btn" data-timeframe="day">Último día</button>
-        <button class="filter-btn" data-timeframe="week">Última semana</button>
-        <button class="filter-btn" data-timeframe="month">Último mes</button>
-    </div>
-    
-    <!-- Resumen de métricas -->
+    <!-- Tarjetas de métricas -->
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="metric-card">
                 <div class="metric-title">CPU Promedio (Cluster)</div>
                 <div class="metric-value" id="avg-cpu">--</div>
+                <div class="text-muted">Porcentaje</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="metric-card">
                 <div class="metric-title">Memoria Promedio (Cluster)</div>
                 <div class="metric-value" id="avg-mem">--</div>
+                <div class="text-muted">Porcentaje</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="metric-card">
                 <div class="metric-title">VMs Activas</div>
                 <div class="metric-value" id="active-vms">--</div>
+                <div class="text-muted">Total</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="metric-card">
                 <div class="metric-title">Nodos Activos</div>
                 <div class="metric-value" id="active-nodes">--</div>
+                <div class="text-muted">Total</div>
             </div>
         </div>
     </div>
@@ -114,12 +90,14 @@
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="chart-container">
-                <canvas id="cpu-chart"></canvas>
+                <h3>Uso de CPU</h3>
+                <div id="cpu-chart" style="width: 100%; height: 250px;"></div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="chart-container">
-                <canvas id="memory-chart"></canvas>
+                <h3>Uso de Memoria</h3>
+                <div id="memory-chart" style="width: 100%; height: 250px;"></div>
             </div>
         </div>
     </div>
@@ -127,24 +105,26 @@
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="chart-container">
-                <canvas id="disk-chart"></canvas>
+                <h3>I/O de Disco</h3>
+                <div id="disk-chart" style="width: 100%; height: 250px;"></div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="chart-container">
-                <canvas id="network-chart"></canvas>
+                <h3>Tráfico de Red</h3>
+                <div id="network-chart" style="width: 100%; height: 250px;"></div>
             </div>
         </div>
     </div>
     
     <!-- Tabla de Top VMs -->
     <div class="card">
-        <div class="card-header">
-            <h2 class="h5 mb-0">Top VMs por consumo de recursos</h2>
+        <div class="card-header bg-dark text-white">
+            <h3 class="h5 mb-0">Top VMs por consumo de recursos</h3>
         </div>
-        <div class="card-body">
+        <div class="card-body bg-dark">
             <div class="table-responsive">
-                <table class="table">
+                <table class="table table-dark table-hover">
                     <thead>
                         <tr>
                             <th>VM</th>
@@ -169,387 +149,320 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Chart.js para gráficos -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    // Configuración de gráficos
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'top',
-                labels: {
-                    color: '#e0e0e0'
-                }
-            },
-            tooltip: {
-                mode: 'index',
-                intersect: false
-            }
-        },
-        scales: {
-            x: {
-                grid: {
-                    color: 'rgba(255, 255, 255, 0.1)'
-                },
-                ticks: {
-                    color: '#aaa'
-                }
-            },
-            y: {
-                grid: {
-                    color: 'rgba(255, 255, 255, 0.1)'
-                },
-                ticks: {
-                    color: '#aaa'
-                },
-                beginAtZero: true
-            }
-        }
-    };
-    
-    // Inicializar gráficos vacíos
-    const cpuChart = new Chart(
-        document.getElementById('cpu-chart').getContext('2d'),
-        {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: []
-            },
-            options: {
-                ...chartOptions,
-                plugins: {
-                    ...chartOptions.plugins,
-                    title: {
-                        display: true,
-                        text: 'Uso de CPU',
-                        color: '#e0e0e0'
-                    }
-                }
-            }
-        }
-    );
-    
-    const memoryChart = new Chart(
-        document.getElementById('memory-chart').getContext('2d'),
-        {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: []
-            },
-            options: {
-                ...chartOptions,
-                plugins: {
-                    ...chartOptions.plugins,
-                    title: {
-                        display: true,
-                        text: 'Uso de Memoria',
-                        color: '#e0e0e0'
-                    }
-                }
-            }
-        }
-    );
-    
-    const diskChart = new Chart(
-        document.getElementById('disk-chart').getContext('2d'),
-        {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: []
-            },
-            options: {
-                ...chartOptions,
-                plugins: {
-                    ...chartOptions.plugins,
-                    title: {
-                        display: true,
-                        text: 'I/O de Disco',
-                        color: '#e0e0e0'
-                    }
-                }
-            }
-        }
-    );
-    
-    const networkChart = new Chart(
-        document.getElementById('network-chart').getContext('2d'),
-        {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: []
-            },
-            options: {
-                ...chartOptions,
-                plugins: {
-                    ...chartOptions.plugins,
-                    title: {
-                        display: true,
-                        text: 'Tráfico de Red',
-                        color: '#e0e0e0'
-                    }
-                }
-            }
-        }
-    );
-    
     // Variables globales
-    let currentTimeframe = 'hour';
+    let cpuChart, memoryChart, diskChart, networkChart;
     
-    // Cargar datos
-    function loadMetricsData(timeframe) {
-        const loadingStart = new Date();
+    // Inicializar gráficos
+    function initCharts() {
+        const cpuCtx = document.getElementById('cpu-chart').getContext('2d');
+        cpuChart = new Chart(cpuCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
         
-        // Actualizar UI para mostrar carga
-        document.getElementById('refresh-btn').innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Cargando...';
+        const memoryCtx = document.getElementById('memory-chart').getContext('2d');
+        memoryChart = new Chart(memoryCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
         
-        // Realizar solicitud a la API
-        fetch(`/api/metrics/?timeframe=${timeframe}`)
+        const diskCtx = document.getElementById('disk-chart').getContext('2d');
+        diskChart = new Chart(diskCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+        
+        const networkCtx = document.getElementById('network-chart').getContext('2d');
+        networkChart = new Chart(networkCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+    }
+    
+    // Cargar datos desde la API
+    function loadMetricsData() {
+        const refreshBtn = document.getElementById('refresh-btn');
+        refreshBtn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div> Actualizando...';
+        refreshBtn.disabled = true;
+        
+        fetch('/api/metrics/?timeframe=hour')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Actualizar gráficos
-                    updateCharts(data.data);
-                    
-                    // Actualizar métricas promedio
-                    updateAverages(data.data.averages);
-                    
-                    // Actualizar tabla de top VMs
-                    updateTopVmsTable(data.data.top_vms);
-                    
-                    // Actualizar hora de última actualización
-                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-                } else {
-                    console.error('Error al cargar datos:', data.message);
-                    
-                    // Si hay datos de respaldo, usarlos
-                    if (data.fallback_data) {
-                        updateCharts(data.data);
-                        updateAverages(data.data.averages);
-                        updateTopVmsTable(data.data.top_vms);
-                    }
+                    updateDashboard(data.data);
+                } else if (data.fallback_data) {
+                    // Usar datos de respaldo si están disponibles
+                    updateDashboard(data.data);
                 }
+                
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             })
             .catch(error => {
-                console.error('Error en la solicitud:', error);
+                console.error('Error al cargar datos:', error);
             })
             .finally(() => {
-                // Restaurar botón después de al menos 500ms (para evitar parpadeo)
-                const elapsed = new Date() - loadingStart;
-                setTimeout(() => {
-                    document.getElementById('refresh-btn').innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
-                }, Math.max(0, 500 - elapsed));
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
+                refreshBtn.disabled = false;
             });
     }
     
-    // Función para actualizar gráficos
-    function updateCharts(data) {
-        // Actualizar etiquetas de tiempo (eje X)
-        const timestamps = data.timestamps;
+    // Actualizar dashboard con los datos obtenidos
+    function updateDashboard(data) {
+        // Actualizar tarjetas de métricas
+        document.getElementById('avg-cpu').textContent = data.averages.cpu.toFixed(1) + '%';
+        document.getElementById('avg-mem').textContent = data.averages.memory.toFixed(1) + '%';
+        document.getElementById('active-vms').textContent = data.averages.active_vms;
+        document.getElementById('active-nodes').textContent = data.averages.active_nodes;
         
-        // Actualizar gráfico de CPU
-        updateCpuChart(timestamps, data.cpu_history);
+        // Actualizar gráficos
+        updateCharts(data);
         
-        // Actualizar gráfico de memoria
-        updateMemoryChart(timestamps, data.memory_history);
-        
-        // Actualizar gráfico de disco
-        updateDiskChart(timestamps, data.disk_history);
-        
-        // Actualizar gráfico de red
-        updateNetworkChart(timestamps, data.network_history);
+        // Actualizar tabla de VMs
+        updateVmsTable(data.top_vms);
     }
     
-    function updateCpuChart(timestamps, cpuData) {
-        // Limpiar datasets existentes
-        cpuChart.data.labels = timestamps;
+    // Actualizar gráficos
+    function updateCharts(data) {
+        // Actualizar gráfico de CPU
+        cpuChart.data.labels = data.timestamps;
         cpuChart.data.datasets = [];
         
-        // Añadir datos de nodos
-        Object.entries(cpuData.nodes).forEach(([nodeName, values], index) => {
-            cpuChart.data.datasets.push({
-                label: `Nodo: ${nodeName}`,
-                data: values,
-                borderColor: getNodeColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
+        // Añadir datos de CPU para nodos
+        if (data.cpu_history && data.cpu_history.nodes) {
+            const nodeColors = ['#FF5722', '#FF9800', '#FFC107', '#FFEB3B'];
+            
+            Object.entries(data.cpu_history.nodes).forEach(([nodeName, values], index) => {
+                cpuChart.data.datasets.push({
+                    label: `CPU ${nodeName}`,
+                    data: values,
+                    borderColor: nodeColors[index % nodeColors.length],
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.4
+                });
             });
-        });
+        }
         
-        // Añadir datos de top VMs (solo las 3 primeras)
-        const topVms = Object.entries(cpuData.vms).slice(0, 3);
-        topVms.forEach(([vmName, values], index) => {
-            cpuChart.data.datasets.push({
-                label: `VM: ${vmName}`,
-                data: values,
-                borderColor: getVmColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
-            });
-        });
-        
-        cpuChart.update();
-    }
-    
-    function updateMemoryChart(timestamps, memoryData) {
-        // Limpiar datasets existentes
-        memoryChart.data.labels = timestamps;
+        // Actualizar gráfico de memoria
+        memoryChart.data.labels = data.timestamps;
         memoryChart.data.datasets = [];
         
-        // Añadir datos de nodos
-        Object.entries(memoryData.nodes).forEach(([nodeName, values], index) => {
-            memoryChart.data.datasets.push({
-                label: `Nodo: ${nodeName}`,
-                data: values,
-                borderColor: getNodeColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
+        // Añadir datos de memoria para nodos
+        if (data.memory_history && data.memory_history.nodes) {
+            const memColors = ['#2196F3', '#03A9F4', '#00BCD4', '#009688'];
+            
+            Object.entries(data.memory_history.nodes).forEach(([nodeName, values], index) => {
+                memoryChart.data.datasets.push({
+                    label: `Memoria ${nodeName}`,
+                    data: values,
+                    borderColor: memColors[index % memColors.length],
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.4
+                });
             });
-        });
+        }
         
-        // Añadir datos de top VMs (solo las 3 primeras)
-        const topVms = Object.entries(memoryData.vms).slice(0, 3);
-        topVms.forEach(([vmName, values], index) => {
-            memoryChart.data.datasets.push({
-                label: `VM: ${vmName}`,
-                data: values,
-                borderColor: getVmColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
-            });
-        });
-        
-        memoryChart.update();
-    }
-    
-    function updateDiskChart(timestamps, diskData) {
-        // Limpiar datasets existentes
-        diskChart.data.labels = timestamps;
+        // Actualizar gráfico de disco
+        diskChart.data.labels = data.timestamps;
         diskChart.data.datasets = [];
         
-        // Obtener las 3 VMs con mayor I/O de disco
-        const topVmNames = Object.keys(diskData.read).slice(0, 3);
-        
-        // Para cada VM, añadir lectura y escritura
-        topVmNames.forEach((vmName, index) => {
-            // Añadir datos de lectura
-            diskChart.data.datasets.push({
-                label: `${vmName} - Lectura`,
-                data: diskData.read[vmName],
-                borderColor: getDiskReadColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
-            });
+        // Añadir datos de disco para VMs
+        if (data.disk_history) {
+            const diskColors = ['#4CAF50', '#8BC34A', '#F44336', '#E91E63'];
+            let colorIndex = 0;
             
-            // Añadir datos de escritura
-            diskChart.data.datasets.push({
-                label: `${vmName} - Escritura`,
-                data: diskData.write[vmName],
-                borderColor: getDiskWriteColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
-            });
-        });
+            // Datos de lectura
+            if (data.disk_history.read) {
+                Object.entries(data.disk_history.read).slice(0, 3).forEach(([vmName, values]) => {
+                    diskChart.data.datasets.push({
+                        label: `${vmName} (Lectura)`,
+                        data: values,
+                        borderColor: diskColors[colorIndex % diskColors.length],
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.4
+                    });
+                    colorIndex++;
+                });
+            }
+            
+            // Datos de escritura
+            if (data.disk_history.write) {
+                Object.entries(data.disk_history.write).slice(0, 3).forEach(([vmName, values]) => {
+                    diskChart.data.datasets.push({
+                        label: `${vmName} (Escritura)`,
+                        data: values,
+                        borderColor: diskColors[colorIndex % diskColors.length],
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.4
+                    });
+                    colorIndex++;
+                });
+            }
+        }
         
-        diskChart.update();
-    }
-    
-    function updateNetworkChart(timestamps, networkData) {
-        // Limpiar datasets existentes
-        networkChart.data.labels = timestamps;
+        // Actualizar gráfico de red
+        networkChart.data.labels = data.timestamps;
         networkChart.data.datasets = [];
         
-        // Obtener las 3 VMs con mayor tráfico de red
-        const topVmNames = Object.keys(networkData.in).slice(0, 3);
-        
-        // Para cada VM, añadir tráfico entrante y saliente
-        topVmNames.forEach((vmName, index) => {
-            // Añadir datos de tráfico entrante
-            networkChart.data.datasets.push({
-                label: `${vmName} - In`,
-                data: networkData.in[vmName],
-                borderColor: getNetInColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
-            });
+        // Añadir datos de red para VMs
+        if (data.network_history) {
+            const netColors = ['#9C27B0', '#673AB7', '#3F51B5', '#F44336'];
+            let colorIndex = 0;
             
-            // Añadir datos de tráfico saliente
-            networkChart.data.datasets.push({
-                label: `${vmName} - Out`,
-                data: networkData.out[vmName],
-                borderColor: getNetOutColor(index),
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 3
-            });
-        });
+            // Datos de entrada
+            if (data.network_history.in) {
+                Object.entries(data.network_history.in).slice(0, 3).forEach(([vmName, values]) => {
+                    networkChart.data.datasets.push({
+                        label: `${vmName} (Entrada)`,
+                        data: values,
+                        borderColor: netColors[colorIndex % netColors.length],
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.4
+                    });
+                    colorIndex++;
+                });
+            }
+            
+            // Datos de salida
+            if (data.network_history.out) {
+                Object.entries(data.network_history.out).slice(0, 3).forEach(([vmName, values]) => {
+                    networkChart.data.datasets.push({
+                        label: `${vmName} (Salida)`,
+                        data: values,
+                        borderColor: netColors[colorIndex % netColors.length],
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.4
+                    });
+                    colorIndex++;
+                });
+            }
+        }
         
+        // Actualizar todos los gráficos
+        cpuChart.update();
+        memoryChart.update();
+        diskChart.update();
         networkChart.update();
     }
     
-    function updateAverages(averages) {
-        // Actualizar valores de resumen
-        document.getElementById('avg-cpu').textContent = `${averages.cpu}%`;
-        document.getElementById('avg-mem').textContent = `${averages.memory}%`;
-        document.getElementById('active-vms').textContent = averages.active_vms;
-        document.getElementById('active-nodes').textContent = averages.active_nodes;
-    }
-    
-    function updateTopVmsTable(vms) {
+    // Actualizar tabla de VMs
+    function updateVmsTable(vms) {
         const tableBody = document.getElementById('top-vms-table');
         tableBody.innerHTML = '';
         
         if (!vms || vms.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="7" class="text-center">No hay datos disponibles</td></tr>';
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="7" class="text-center">No hay datos disponibles</td>';
+            tableBody.appendChild(row);
             return;
         }
         
-        // Crear filas para cada VM
         vms.forEach(vm => {
             const row = document.createElement('tr');
             
             row.innerHTML = `
                 <td>${vm.name}</td>
                 <td>${vm.node}</td>
-                <td><div class="progress" style="height: 5px;"><div class="progress-bar bg-danger" role="progressbar" style="width: ${vm.cpu}%"></div></div> ${vm.cpu}%</td>
-                <td><div class="progress" style="height: 5px;"><div class="progress-bar bg-warning" role="progressbar" style="width: ${vm.memory}%"></div></div> ${vm.memory}%</td>
+                <td>
+                    <div class="progress">
+                        <div class="progress-bar bg-warning" role="progressbar" style="width: ${vm.cpu}%"
+                             aria-valuenow="${vm.cpu}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <span class="ms-2">${vm.cpu.toFixed(1)}%</span>
+                </td>
+                <td>
+                    <div class="progress">
+                        <div class="progress-bar bg-info" role="progressbar" style="width: ${vm.memory}%"
+                             aria-valuenow="${vm.memory}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <span class="ms-2">${vm.memory.toFixed(1)}%</span>
+                </td>
                 <td>${vm.disk_io.toFixed(1)} MB/s</td>
                 <td>${vm.network.toFixed(1)} Mbps</td>
                 <td>
                     <a href="/vms/${vm.node}/${vm.id}/" class="btn btn-sm btn-primary">
-                        <i class="fas fa-eye"></i>
+                        <i class="fas fa-eye"></i> Ver
                     </a>
                 </td>
             `;
@@ -558,66 +471,21 @@
         });
     }
     
-    // Funciones auxiliares para colores
-    function getNodeColor(index) {
-        const colors = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#8E24AA'];
-        return colors[index % colors.length];
-    }
-    
-    function getVmColor(index) {
-        const colors = ['#FF5722', '#FF9800', '#9C27B0', '#3F51B5', '#009688'];
-        return colors[index % colors.length];
-    }
-    
-    function getDiskReadColor(index) {
-        const colors = ['#00C853', '#64DD17', '#76FF03'];
-        return colors[index % colors.length];
-    }
-    
-    function getDiskWriteColor(index) {
-        const colors = ['#F50057', '#D50000', '#C51162'];
-        return colors[index % colors.length];
-    }
-    
-    function getNetInColor(index) {
-        const colors = ['#2196F3', '#03A9F4', '#00BCD4'];
-        return colors[index % colors.length];
-    }
-    
-    function getNetOutColor(index) {
-        const colors = ['#FF9800', '#FF5722', '#F44336'];
-        return colors[index % colors.length];
-    }
-    
-    // Inicializar la página
+    // Inicialización
     document.addEventListener('DOMContentLoaded', function() {
+        // Inicializar gráficos
+        initCharts();
+        
         // Cargar datos iniciales
-        loadMetricsData(currentTimeframe);
+        loadMetricsData();
         
         // Configurar botón de actualización
         document.getElementById('refresh-btn').addEventListener('click', function() {
-            loadMetricsData(currentTimeframe);
+            loadMetricsData();
         });
         
-        // Configurar filtros de tiempo
-        document.querySelectorAll('.filter-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                // Actualizar botones
-                document.querySelectorAll('.filter-btn').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-                this.classList.add('active');
-                
-                // Actualizar timeframe y cargar datos
-                currentTimeframe = this.dataset.timeframe;
-                loadMetricsData(currentTimeframe);
-            });
-        });
-        
-        // Actualizar cada 60 segundos
-        setInterval(() => {
-            loadMetricsData(currentTimeframe);
-        }, 60000);
+        // Actualizar automáticamente cada 60 segundos
+        setInterval(loadMetricsData, 60000);
     });
 </script>
 {% endblock %}
