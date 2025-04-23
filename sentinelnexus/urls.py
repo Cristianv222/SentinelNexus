@@ -33,4 +33,9 @@ urlpatterns = [
     # Nuevas APIs para gráficas de métricas
     path('api/vms/<str:node_name>/<int:vmid>/metrics/', views.api_vm_metrics, name='api_vm_metrics'),
     path('api/dashboard/metrics/', views.api_dashboard_metrics, name='api_dashboard_metrics'),
+
+    # En sentinelnexus/urls.py añade estas líneas a urlpatterns:
+    path('metrics/', views.metrics_dashboard, name='metrics_dashboard'),
+    path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
+    path('api/metrics/', views.api_metrics, name='api_metrics'),
 ]

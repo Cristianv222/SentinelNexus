@@ -95,6 +95,10 @@ PROXMOX = {
     'verify_ssl': os.environ.get('PROXMOX_VERIFY_SSL', 'false').lower() == 'true',
 }
 
+# Configuración de Grafana (opcional, se pueden usar valores predeterminados)
+GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
+GRAFANA_DASHBOARD_ID = os.environ.get('GRAFANA_DASHBOARD_ID', 'proxmox-monitoring')
+
 # Verificación de que la configuración de Proxmox esté completa
 # Comentado para desarrollo, usar advertencia en su lugar
 if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
