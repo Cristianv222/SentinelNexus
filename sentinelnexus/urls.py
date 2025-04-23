@@ -12,8 +12,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     
     # URLs de autenticación
-    path('accounts/login/', LoginView.as_view(), name='login'),
-    path('accounts/logout/', LogoutView.as_view(), name='logout'),
+    path('accounts/login/', LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('accounts/logout/', LogoutView.as_view(template_name='registration/logged_out.html'), name='logout'),
     path('accounts/', include('django.contrib.auth.urls')),
     
     # Rutas de la aplicación
