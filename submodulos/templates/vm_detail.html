@@ -15,7 +15,7 @@
             </button>
         </div>
     </div>
-    
+
     <!-- Acciones rápidas -->
     <div class="card mb-4">
         <div class="card-header">
@@ -78,7 +78,7 @@
                         <dt class="col-sm-4">Uptime</dt>
                         <dd class="col-sm-8">
                             {% if vm_status.uptime %}
-                            {{ vm_status.uptime|divmod:86400 }}d {{ vm_status.uptime|divmod:3600 }}h {{ vm_status.uptime|divmod:60 }}m
+                            {{ vm_status.uptime_formatted }}
                             {% else %}
                             N/A
                             {% endif %}
@@ -90,7 +90,6 @@
                             {% if vm_status.cpu %}
                             <div class="progress mt-1">
                                 <div class="progress-bar bg-primary" role="progressbar" 
-                                     style="width: {{ vm_status.cpu|floatformat:1 }}%;" 
                                      aria-valuenow="{{ vm_status.cpu|floatformat:1 }}" 
                                      aria-valuemin="0" aria-valuemax="100">
                                     {{ vm_status.cpu|floatformat:1 }}%
@@ -105,10 +104,9 @@
                             {{ vm_status.mem|filesizeformat }} / {{ vm_status.maxmem|filesizeformat }}
                             <div class="progress mt-1">
                                 <div class="progress-bar bg-success" role="progressbar" 
-                                     style="width: {{ vm_status.mem|div:vm_status.maxmem|mul:100|floatformat:1 }}%;" 
-                                     aria-valuenow="{{ vm_status.mem|div:vm_status.maxmem|mul:100|floatformat:1 }}" 
+                                     aria-valuenow="{{ vm_status.mem_percent|floatformat:1 }}" 
                                      aria-valuemin="0" aria-valuemax="100">
-                                    {{ vm_status.mem|div:vm_status.maxmem|mul:100|floatformat:1 }}%
+                                    {{ vm_status.mem_percent|floatformat:1 }}%
                                 </div>
                             </div>
                             {% else %}
@@ -276,8 +274,8 @@
                             </td>
                             <td>{{ task.starttime|timestamp_to_datetime }}</td>
                             <td>
-                                {% if task.endtime and task.starttime %}
-                                {{ task.endtime|sub:task.starttime }} segundos
+                                {% if task.duration %}
+                                {{ task.duration }} segundos
                                 {% else %}
                                 N/A
                                 {% endif %}
@@ -329,24 +327,6 @@
             }
         });
     });
-    
-    // Actualización periódica para VMs en ejecución
-    {% if vm_status.status == 'running' %}
-    function updateVMStatus() {
-        fetch(`{% url 'api_vm_status' node_name vmid %}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Actualizar información de CPU y memoria
-                    // (Implementar según necesidad)
-                }
-            })
-            .catch(error => console.error('Error:', error));
-    }
-    
-    // Actualizar cada 5 segundos
-    const statusInterval = setInterval(updateVMStatus, 5000);
-    {% endif %}
 </script>
 {% endblock %}
 {% endblock %}
