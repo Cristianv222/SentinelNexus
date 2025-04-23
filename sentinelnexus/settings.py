@@ -14,11 +14,11 @@ import os
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
-# Cargar variables de entorno desde el archivo .env
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables de entorno desde el archivo .env
+load_dotenv(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-development')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
@@ -84,6 +84,9 @@ DATABASES = {
         'PASSWORD': os.environ.get('DB_PASSWORD', '12345678910'),
         'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': os.environ.get('DB_PORT', '5432'),
+        'OPTIONS': {
+            'client_encoding': 'UTF8',
+        },
     }
 }
 
@@ -104,11 +107,6 @@ if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
         "Algunas funcionalidades relacionadas con Proxmox no estarán disponibles. "
         "Asegúrate de configurar PROXMOX_HOST, PROXMOX_USER y PROXMOX_PASSWORD."
     )
-    # Reemplazado por advertencia en vez de error
-    # raise ImproperlyConfigured(
-    #     "Las configuraciones de Proxmox no están completas. "
-    #     "Asegúrate de configurar PROXMOX_HOST, PROXMOX_USER y PROXMOX_PASSWORD."
-    # )
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -131,9 +129,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-mx'  # Español de México
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Mexico_City'  # Zona horaria de México
 
 USE_I18N = True
 
