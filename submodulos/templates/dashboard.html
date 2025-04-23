@@ -21,14 +21,32 @@
         border-radius: 10px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         color: #e0e0e0;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    
+    /* Nuevos colores para la paleta tomate, amarillo y oscuros */
+    .card-tomate {
+        background: linear-gradient(45deg, #FF5722, #FF7043);
+    }
+    
+    .card-amarillo {
+        background: linear-gradient(45deg, #FFC107, #FFD54F);
+        color: #333;
+    }
+    
+    .card-oscuro {
+        background: linear-gradient(45deg, #263238, #37474F);
+    }
+    
+    .card-header {
+        border-bottom: 1px solid #444;
+        padding: 12px 15px;
     }
     
     .stat-card {
-        background: linear-gradient(45deg, #1e3c72, #2a5298);
         color: white;
         height: 100px;
-        padding: 10px;
+        padding: 15px;
     }
     
     .stat-card .card-title {
@@ -39,7 +57,7 @@
     }
     
     .stat-value {
-        font-size: 1.5rem;
+        font-size: 1.8rem;
         font-weight: bold;
         margin-bottom: 0;
     }
@@ -48,8 +66,8 @@
         background: #252525;
         border-radius: 10px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        padding: 10px;
-        margin-bottom: 15px;
+        padding: 15px;
+        margin-bottom: 20px;
         overflow-x: auto;
     }
     
@@ -65,47 +83,79 @@
         font-weight: 600;
         color: #e0e0e0;
         border-color: #444;
-        padding: 8px 5px;
+        padding: 10px 8px;
         white-space: nowrap;
     }
     
     .table td {
         border-color: #444;
-        padding: 6px 5px;
+        padding: 8px;
         vertical-align: middle;
     }
     
     .table-hover tbody tr:hover {
         background-color: #333;
-        color: #fff !important;
     }
     
-    .table-hover tbody tr:hover td {
-        color: #fff !important;
-    }
-    
-    .table-hover tbody tr:hover .badge {
-        filter: brightness(1.2);
-    }
-    
-    .table-hover tbody tr:hover .small-text {
-        color: #e0e0e0 !important;
-    }
-    
-    .table-hover tbody tr:hover .resource-value {
-        color: #fff !important;
-    }
     .badge {
         padding: 0.3em 0.6em;
         font-weight: 500;
         font-size: 0.75rem;
     }
     
+    .badge-tomate {
+        background-color: #FF5722;
+        color: white;
+    }
+    
+    .badge-amarillo {
+        background-color: #FFC107;
+        color: #333;
+    }
+    
+    .badge-oscuro {
+        background-color: #37474F;
+        color: white;
+    }
+    
     .btn-action {
-        padding: 0.2rem 0.5rem;
+        padding: 0.25rem 0.5rem;
         margin: 0 2px;
-        border-radius: 20px;
+        border-radius: 4px;
         font-size: 0.75rem;
+    }
+    
+    .btn-tomate {
+        background-color: #FF5722;
+        color: white;
+        border: none;
+    }
+    
+    .btn-tomate:hover {
+        background-color: #E64A19;
+        color: white;
+    }
+    
+    .btn-amarillo {
+        background-color: #FFC107;
+        color: #333;
+        border: none;
+    }
+    
+    .btn-amarillo:hover {
+        background-color: #FFA000;
+        color: #333;
+    }
+    
+    .btn-oscuro {
+        background-color: #455A64;
+        color: white;
+        border: none;
+    }
+    
+    .btn-oscuro:hover {
+        background-color: #37474F;
+        color: white;
     }
     
     .ping-status {
@@ -113,44 +163,21 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        margin-right: 3px;
+        margin-right: 5px;
     }
     
     .ping-good {
-        background-color: #28a745;
+        background-color: #4CAF50;
     }
     
     .ping-bad {
-        background-color: #dc3545;
-    }
-    
-    .metric-card {
-        font-size: 0.75rem;
-        line-height: 1.2;
+        background-color: #F44336;
     }
     
     .resource-value {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         text-align: right;
         display: inline-block;
-    }
-    
-    .metric-column {
-        width: 80px;
-    }
-    
-    h1.h2 {
-        font-size: 1.5rem;
-        margin-bottom: 15px;
-    }
-    
-    h2.h4 {
-        font-size: 1.1rem;
-        margin-bottom: 10px;
-    }
-    
-    .error-card {
-        border-left: 5px solid #dc3545;
     }
     
     .small-text {
@@ -158,79 +185,267 @@
         color: #aaa;
     }
     
-    /* Columnas compactas */
-    .table .col-id { width: 50px; }
-    .table .col-name { min-width: 120px; }
-    .table .col-node { width: 80px; }
-    .table .col-type { width: 60px; }
-    .table .col-status { width: 80px; }
-    .table .col-ping { width: 70px; }
-    .table .col-cpu { width: 60px; }
-    .table .col-mem { width: 100px; }
-    .table .col-disk { width: 120px; }
-    .table .col-net { width: 90px; }
-    .table .col-actions { width: 80px; text-align: center; }
+    .error-card {
+        border-left: 5px solid #F44336;
+    }
+    
+    /* VM Cards Grid */
+    .vm-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .vm-card {
+        background: #252525;
+        border-radius: 10px;
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+    
+    .vm-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .vm-header {
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #333;
+    }
+    
+    .vm-name {
+        display: flex;
+        align-items: center;
+        font-weight: 500;
+    }
+    
+    .vm-body {
+        padding: 15px;
+    }
+    
+    .vm-stat {
+        margin-bottom: 15px;
+    }
+    
+    .vm-stat-title {
+        font-size: 0.75rem;
+        color: #aaa;
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .vm-stat-value {
+        font-size: 1.2rem;
+        font-weight: 500;
+    }
+    
+    .progress {
+        height: 6px;
+        background-color: #333;
+        margin-top: 8px;
+        border-radius: 3px;
+    }
+    
+    .progress-bar-cpu {
+        background-color: #FF5722;
+    }
+    
+    .progress-bar-mem {
+        background-color: #FFC107;
+    }
+    
+    .progress-bar-disk {
+        background-color: #795548;
+    }
+    
+    .resource-small {
+        font-size: 0.7rem;
+        color: #aaa;
+        margin-top: 3px;
+    }
+    
+    .vm-footer {
+        background: #1e1e1e;
+        padding: 10px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .chart-container {
+        height: 120px;
+        margin: 15px 0;
+        position: relative;
+    }
+    
+    /* Resource Icons */
+    .icon-cpu {
+        color: #FF5722;
+    }
+    
+    .icon-mem {
+        color: #FFC107;
+    }
+    
+    .icon-disk {
+        color: #795548;
+    }
+    
+    .icon-net {
+        color: #607D8B;
+    }
+
+    /* Filter buttons */
+    .filter-container {
+        margin-bottom: 20px;
+    }
+    
+    .filter-btn {
+        background: #333;
+        border: none;
+        color: #e0e0e0;
+        padding: 8px 15px;
+        border-radius: 20px;
+        margin-right: 5px;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+    }
+    
+    .filter-btn:hover {
+        background: #5c5b5bb0;
+    }
+    
+    .filter-btn.active {
+        background: #FF5722;
+        color: white;
+    }
+    
+    /* Spinner de carga */
+    .spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid #e3e3e3;
+        border-top: 3px solid #FF5722;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 8px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Tarjeta con bordes de color */
+    .card-border-success {
+        border-left: 4px solid #4CAF50;
+    }
+    
+    .card-border-danger {
+        border-left: 4px solid #F44336;
+    }
+    
+    /* Más espacio para las leyendas */
+    .chart-legend {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 5px;
+        font-size: 0.7rem;
+    }
+    
+    .chart-legend-item {
+        display: flex;
+        align-items: center;
+    }
+    
+    .chart-legend-color {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 4px;
+        display: inline-block;
+    }
+    
+    .cpu-color {
+        background-color: #FF5722;
+    }
+    
+    .mem-color {
+        background-color: #FFC107;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-2">
+<div class="container-fluid mt-3">
     {% if connection_error %}
-    <div class="error-container">
-        <div class="card error-card">
-            <div class="card-header bg-danger text-white py-2">
-                <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Error de Conexión con Proxmox</h4>
+    <div class="card error-card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Error de Conexión con Proxmox</h4>
+        </div>
+        <div class="card-body">
+            {% if auth_error %}
+            <div class="alert alert-warning py-2">
+                <h5><i class="fas fa-lock me-2"></i>Problema de Autenticación</h5>
+                <p class="mb-2">No se pudo autenticar con el servidor Proxmox. Por favor, verifica:</p>
+                <ul class="mb-2">
+                    <li>El nombre de usuario y contraseña sean correctos</li>
+                    <li>El usuario tenga permisos suficientes en Proxmox</li>
+                    <li>El formato del usuario sea correcto (ej: <code>root@pam</code>)</li>
+                </ul>
+                <div class="bg-dark p-2 rounded">
+                    <small>
+                        <strong>Host:</strong> <code>{{ PROXMOX_HOST|default:"No configurado" }}</code><br>
+                        <strong>Usuario:</strong> <code>{{ PROXMOX_USER|default:"No configurado" }}</code>
+                    </small>
+                </div>
             </div>
-            <div class="card-body">
-                {% if auth_error %}
-                <div class="alert alert-warning py-2">
-                    <h5><i class="fas fa-lock me-2"></i>Problema de Autenticación</h5>
-                    <p class="mb-2">No se pudo autenticar con el servidor Proxmox. Por favor, verifica:</p>
-                    <ul class="mb-2">
-                        <li>El nombre de usuario y contraseña sean correctos</li>
-                        <li>El usuario tenga permisos suficientes en Proxmox</li>
-                        <li>El formato del usuario sea correcto (ej: <code>root@pam</code>)</li>
-                    </ul>
-                    <div class="bg-dark p-2 rounded">
-                        <small>
-                            <strong>Host:</strong> <code>{{ PROXMOX_HOST|default:"No configurado" }}</code><br>
-                            <strong>Usuario:</strong> <code>{{ PROXMOX_USER|default:"No configurado" }}</code>
-                        </small>
-                    </div>
-                </div>
+            {% endif %}
+            
+            <div class="text-danger mb-3">
+                <strong><i class="fas fa-info-circle me-2"></i>Error:</strong>
+                <code>{{ error_message }}</code>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-sync-alt me-1"></i>Reintentar
+                </a>
+                {% if user.is_superuser %}
+                <a href="{% url 'admin:index' %}" class="btn btn-secondary btn-sm">
+                    <i class="fas fa-cog me-1"></i>Admin
+                </a>
                 {% endif %}
-                
-                <div class="text-danger mb-3">
-                    <strong><i class="fas fa-info-circle me-2"></i>Error:</strong>
-                    <code>{{ error_message }}</code>
-                </div>
-                
-                <div class="d-flex gap-2">
-                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm">
-                        <i class="fas fa-sync-alt me-1"></i>Reintentar
-                    </a>
-                    {% if user.is_superuser %}
-                    <a href="{% url 'admin:index' %}" class="btn btn-secondary btn-sm">
-                        <i class="fas fa-cog me-1"></i>Admin
-                    </a>
-                    {% endif %}
-                </div>
             </div>
         </div>
     </div>
     {% else %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h2 mb-0"><i class="fas fa-tachometer-alt me-2"></i>Dashboard de Proxmox</h1>
-        <button onclick="location.reload();" class="btn btn-outline-light btn-sm">
-            <i class="fas fa-sync-alt me-1"></i>Actualizar
-        </button>
+    
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h1>
+        <div>
+            <span class="me-3 text-muted small">
+                <i class="fas fa-clock me-1"></i>Última actualización: <span id="last-update"></span>
+            </span>
+            <button id="refresh-btn" class="btn btn-oscuro btn-sm">
+                <i class="fas fa-sync-alt me-1"></i>Actualizar
+            </button>
+        </div>
     </div>
     
-    <!-- Tarjetas de resumen -->
-    <div class="row mb-3">
+    <!-- Stats Cards -->
+    <div class="row mb-4">
         <div class="col-md-4">
-            <div class="card stat-card">
-                <div class="card-body p-2">
+            <div class="card stat-card card-oscuro">
+                <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-server me-2"></i>Nodos</h5>
                     <div class="stat-value">{{ nodes|length }}</div>
                     <p class="mb-0 small">Total de nodos</p>
@@ -238,8 +453,8 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card stat-card" style="background: linear-gradient(45deg, #0f2027, #203a43);">
-                <div class="card-body p-2">
+            <div class="card stat-card card-tomate">
+                <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-desktop me-2"></i>Máquinas Virtuales</h5>
                     <div class="stat-value">{{ vms|length }}</div>
                     <p class="mb-0 small">Total de VMs</p>
@@ -247,8 +462,8 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card stat-card" style="background: linear-gradient(45deg, #232526, #414345);">
-                <div class="card-body p-2">
+            <div class="card stat-card card-amarillo">
+                <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-play-circle me-2"></i>En Ejecución</h5>
                     <div class="stat-value">{{ running_vms }}</div>
                     <p class="mb-0 small">VMs activas</p>
@@ -257,18 +472,149 @@
         </div>
     </div>
     
-    <!-- Tabla de Nodos -->
+    <!-- Filters -->
+    <div class="filter-container">
+        <button class="filter-btn active" data-filter="all">Todas</button>
+        <button class="filter-btn" data-filter="running">En ejecución</button>
+        <button class="filter-btn" data-filter="stopped">Detenidas</button>
+        <button class="filter-btn" data-filter="qemu">KVM</button>
+        <button class="filter-btn" data-filter="lxc">Contenedores</button>
+    </div>
+    
+    <!-- VM Cards Grid -->
+    <div class="vm-grid">
+        {% for vm in vms %}
+        <div class="vm-card {% if vm.status == 'running' %}card-border-success{% else %}card-border-danger{% endif %}" 
+             data-status="{{ vm.status }}" data-type="{{ vm.type }}" data-vmid="{{ vm.vmid }}" data-node="{{ vm.node }}">
+            <div class="vm-header">
+                <div class="vm-name">
+                    {% if vm.type == 'qemu' %}
+                    <i class="fas fa-desktop me-2 icon-cpu"></i>
+                    {% else %}
+                    <i class="fas fa-box me-2 icon-mem"></i>
+                    {% endif %}
+                    {{ vm.name }}
+                    <small class="ms-2 text-muted">#{{ vm.vmid }}</small>
+                </div>
+                <div>
+                    {% if vm.type == 'qemu' %}
+                    <span class="badge badge-tomate">KVM</span>
+                    {% else %}
+                    <span class="badge badge-amarillo">LXC</span>
+                    {% endif %}
+                    
+                    {% if vm.status == 'running' %}
+                    <span class="badge bg-success">Running</span>
+                    {% else %}
+                    <span class="badge bg-danger">Stopped</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="vm-body">
+                {% if vm.status == 'running' %}
+                <!-- Chart will be rendered here -->
+                <div class="chart-container">
+                    <canvas id="vm-chart-{{ vm.vmid }}"></canvas>
+                    <div class="chart-legend">
+                        <div class="chart-legend-item">
+                            <span class="chart-legend-color cpu-color"></span>
+                            <span>CPU</span>
+                        </div>
+                        <div class="chart-legend-item">
+                            <span class="chart-legend-color mem-color"></span>
+                            <span>RAM</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="vm-stat cpu-stat">
+                    <div class="vm-stat-title">
+                        <i class="fas fa-microchip me-1 icon-cpu"></i> CPU
+                    </div>
+                    <div class="vm-stat-value">{{ vm.cpu|default:"0"|floatformat:1 }}%</div>
+                </div>
+                
+                <div class="vm-stat mem-stat">
+                    <div class="vm-stat-title">
+                        <i class="fas fa-memory me-1 icon-mem"></i> RAM
+                    </div>
+                    <div class="vm-stat-value">{{ vm.mem|default:"0"|floatformat:1 }}%</div>
+                    <div class="resource-small mem-detail">{{ vm.mem_used|default:"0" }}/{{ vm.mem_total|default:"0" }}MB</div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-6 disk-stats">
+                        <div class="vm-stat-title">
+                            <i class="fas fa-hdd me-1 icon-disk"></i> Disco
+                        </div>
+                        <div class="resource-small disk-read">R: {{ vm.disk_read|default:"0"|floatformat:1 }}MB/s</div>
+                        <div class="resource-small disk-write">W: {{ vm.disk_write|default:"0"|floatformat:1 }}MB/s</div>
+                        <div class="resource-small disk-usage">{{ vm.disk_used|default:"0" }}/{{ vm.disk_total|default:"0" }}GB</div>
+                    </div>
+                    <div class="col-6 net-stats">
+                        <div class="vm-stat-title">
+                            <i class="fas fa-network-wired me-1 icon-net"></i> Red
+                        </div>
+                        <div class="resource-small net-in">↓ {{ vm.net_in|default:"0"|floatformat:1 }}Mbps</div>
+                        <div class="resource-small net-out">↑ {{ vm.net_out|default:"0"|floatformat:1 }}Mbps</div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-power-off fa-3x mb-3 text-muted"></i>
+                    <p>Máquina virtual apagada</p>
+                    <p class="small text-muted">Inicie la máquina para ver estadísticas</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="vm-footer">
+                <a href="{% url 'vm_detail_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type %}" 
+                   class="btn btn-oscuro btn-sm" title="Ver detalles">
+                    <i class="fas fa-eye me-1"></i>Detalles
+                </a>
+                
+                {% if vm.status == 'stopped' %}
+                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='start' %}" 
+                   class="btn btn-success btn-sm vm-action-btn" title="Iniciar" data-action="start">
+                    <i class="fas fa-play me-1"></i>Iniciar
+                </a>
+                {% else %}
+                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='stop' %}" 
+                   class="btn btn-danger btn-sm vm-action-btn" title="Detener" data-action="stop">
+                    <i class="fas fa-stop me-1"></i>Detener
+                </a>
+                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='restart' %}" 
+                   class="btn btn-tomate btn-sm vm-action-btn" title="Reiniciar" data-action="restart">
+                    <i class="fas fa-sync-alt me-1"></i>Reiniciar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="card w-100">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-server fa-3x mb-3 text-muted"></i>
+                <h3>No hay máquinas virtuales disponibles</h3>
+                <p class="text-muted">No se encontraron máquinas virtuales en el servidor Proxmox.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Nodes Table -->
     <div class="table-container">
-        <h2 class="h4 mb-2"><i class="fas fa-server me-2"></i>Nodos del Cluster</h2>
+        <h2 class="h4 mb-3"><i class="fas fa-server me-2"></i>Nodos del Cluster</h2>
         <div class="table-responsive">
-            <table class="table table-hover table-sm">
+            <table class="table">
                 <thead>
                     <tr>
                         <th>Nombre</th>
                         <th>Estado</th>
                         <th>Ping</th>
-                        <th class="metric-column">CPU</th>
-                        <th class="metric-column">RAM</th>
+                        <th>CPU</th>
+                        <th>RAM</th>
                         <th>Disco</th>
                         <th class="text-center">Acciones</th>
                     </tr>
@@ -277,7 +623,7 @@
                     {% for node in nodes %}
                     <tr>
                         <td>
-                            <i class="fas fa-server me-1 text-primary"></i>
+                            <i class="fas fa-server me-1 icon-cpu"></i>
                             {{ node.node }}
                         </td>
                         <td>
@@ -301,7 +647,7 @@
                             <small>{{ node.disk_used|default:"0" }}/{{ node.disk_total|default:"0" }}GB</small>
                         </td>
                         <td class="text-center">
-                            <a href="{% url 'node_detail' node_name=node.node %}" class="btn btn-sm btn-primary btn-action">
+                            <a href="{% url 'node_detail' node_name=node.node %}" class="btn btn-sm btn-tomate btn-action">
                                 <i class="fas fa-eye"></i>
                             </a>
                         </td>
@@ -318,24 +664,23 @@
         </div>
     </div>
     
-    <!-- Tabla de Máquinas Virtuales -->
+    <!-- VMs Table -->
     <div class="table-container">
-        <h2 class="h4 mb-2"><i class="fas fa-desktop me-2"></i>Máquinas Virtuales</h2>
+        <h2 class="h4 mb-3"><i class="fas fa-desktop me-2"></i>Máquinas Virtuales</h2>
         <div class="table-responsive">
-            <table class="table table-hover table-sm">
+            <table class="table table">
                 <thead>
                     <tr>
-                        <th class="col-id">ID</th>
-                        <th class="col-name">Nombre</th>
-                        <th class="col-node">Nodo</th>
-                        <th class="col-type">Tipo</th>
-                        <th class="col-status">Estado</th>
-                        <th class="col-ping">Ping</th>
-                        <th class="col-cpu">CPU</th>
-                        <th class="col-mem">RAM</th>
-                        <th class="col-disk">Disco</th>
-                        <th class="col-net">Red</th>
-                        <th class="col-actions">Acciones</th>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Nodo</th>
+                        <th>Tipo</th>
+                        <th>Estado</th>
+                        <th>CPU</th>
+                        <th>RAM</th>
+                        <th>Disco</th>
+                        <th>Red</th>
+                        <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -349,9 +694,9 @@
                         <td>{{ vm.node }}</td>
                         <td>
                             {% if vm.type == 'qemu' %}
-                            <span class="badge bg-info">KVM</span>
+                            <span class="badge badge-tomate">KVM</span>
                             {% else %}
-                            <span class="badge bg-secondary">LXC</span>
+                            <span class="badge badge-amarillo">LXC</span>
                             {% endif %}
                         </td>
                         <td>
@@ -362,15 +707,6 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if vm.status == 'running' %}
-                            <span class="ping-status ping-good"></span>
-                            {{ vm.ping|default:"N/A" }}ms
-                            {% else %}
-                            <span class="ping-status ping-bad"></span>
-                            N/A
-                            {% endif %}
-                        </td>
-                        <td>
                             <span class="resource-value">{{ vm.cpu|default:"0"|floatformat:1 }}%</span>
                         </td>
                         <td>
@@ -378,28 +714,25 @@
                             <div class="small-text">{{ vm.mem_used|default:"0" }}/{{ vm.mem_total|default:"0" }}MB</div>
                         </td>
                         <td>
-                            <div class="small-text">R:{{ vm.disk_read|default:"0"|floatformat:1 }}MB/s</div>
-                            <div class="small-text">W:{{ vm.disk_write|default:"0"|floatformat:1 }}MB/s</div>
                             <div class="small-text">{{ vm.disk_used|default:"0" }}/{{ vm.disk_total|default:"0" }}GB</div>
                         </td>
                         <td>
-                            <div class="small-text">↓{{ vm.net_in|default:"0"|floatformat:1 }}Mbps</div>
-                            <div class="small-text">↑{{ vm.net_out|default:"0"|floatformat:1 }}Mbps</div>
+                            <div class="small-text">↓{{ vm.net_in|default:"0"|floatformat:1 }} / ↑{{ vm.net_out|default:"0"|floatformat:1 }}</div>
                         </td>
                         <td class="text-center">
                             <a href="{% url 'vm_detail_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type %}" 
-                               class="btn btn-sm btn-primary btn-action" title="Ver detalles">
+                               class="btn btn-sm btn-oscuro btn-action" title="Ver detalles">
                                 <i class="fas fa-eye"></i>
                             </a>
                             
                             {% if vm.status == 'stopped' %}
                             <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='start' %}" 
-                               class="btn btn-sm btn-success btn-action" title="Iniciar">
+                               class="btn btn-sm btn-success btn-action vm-action-btn" title="Iniciar" data-action="start">
                                 <i class="fas fa-play"></i>
                             </a>
                             {% else %}
                             <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='stop' %}" 
-                               class="btn btn-sm btn-danger btn-action" title="Detener">
+                               class="btn btn-sm btn-danger btn-action vm-action-btn" title="Detener" data-action="stop">
                                 <i class="fas fa-stop"></i>
                             </a>
                             {% endif %}
@@ -407,7 +740,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="11" class="text-center py-3">
+                        <td colspan="10" class="text-center py-3">
                             <i class="fas fa-info-circle me-2"></i>No hay máquinas virtuales disponibles
                         </td>
                     </tr>
@@ -421,15 +754,373 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Datos de VMs para JavaScript -->
+{% for vm in vms %}
+{% if vm.status == 'running' %}
+<script id="vm-data-{{ vm.vmid }}" type="application/json">
+{
+    "vmid": "{{ vm.vmid }}",
+    "name": "{{ vm.name|escapejs }}",
+    "node": "{{ vm.node|escapejs }}",
+    "cpu": {{ vm.cpu|default:"0" }},
+    "mem": {{ vm.mem|default:"0" }},
+    "mem_used": "{{ vm.mem_used|default:'0' }}",
+    "mem_total": "{{ vm.mem_total|default:'0' }}",
+    "disk_read": {{ vm.disk_read|default:"0" }},
+    "disk_write": {{ vm.disk_write|default:"0" }},
+    "disk_used": "{{ vm.disk_used|default:'0' }}",
+    "disk_total": "{{ vm.disk_total|default:'0' }}",
+    "net_in": {{ vm.net_in|default:"0" }},
+    "net_out": {{ vm.net_out|default:"0" }},
+    "type": "{{ vm.type|escapejs }}"
+}
+</script>
+{% endif %}
+{% endfor %}
+
 <script>
-    // Tooltip para los botones
-    $(function () {
-        $('[data-toggle="tooltip"]').tooltip()
+    // Cargar datos de VMs desde los elementos script
+    const vmData = {};
+    document.querySelectorAll('script[id^="vm-data-"]').forEach(script => {
+        try {
+            const data = JSON.parse(script.textContent);
+            vmData[data.vmid] = data;
+        } catch (e) {
+            console.error('Error al parsear datos de VM:', e);
+        }
     });
     
-    // Auto-actualización cada 30 segundos
+    // Configurar la hora de última actualización
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+    
+    // Almacenar referencias a los gráficos
+    const vmCharts = {};
+    
+    // Inicializar datos para las etiquetas de tiempo
+    function initTimeLabels() {
+        const labels = [];
+        const now = new Date();
+        for (let i = 9; i >= 0; i--) {
+            const date = new Date(now - i * 60000);
+            labels.push(date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+        }
+        return labels;
+    }
+    
+    // Inicializar gráficos para VMs encendidas
+    Object.keys(vmData).forEach(vmId => {
+        const vm = vmData[vmId];
+        try {
+            // Contexto del gráfico
+            const ctx = document.getElementById('vm-chart-' + vmId);
+            if (!ctx) return;
+            
+            // Datos iniciales
+            const cpuData = Array(10).fill(vm.cpu);
+            const memData = Array(10).fill(vm.mem);
+            
+            // Crear el gráfico
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: initTimeLabels(),
+                    datasets: [
+                        {
+                            label: 'CPU',
+                            data: cpuData,
+                            borderColor: '#FF5722',
+                            backgroundColor: 'rgba(255, 87, 34, 0.05)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 3
+                        },
+                        {
+                            label: 'RAM',
+                            data: memData,
+                            borderColor: '#FFC107',
+                            backgroundColor: 'rgba(255, 193, 7, 0.05)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.raw + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            display: false,
+                            suggestedMin: 0,
+                            suggestedMax: 100
+                        }
+                    },
+                    animation: {
+                        duration: 500
+                    }
+                }
+            });
+            
+            // Guardar referencia
+            vmCharts[vmId] = chart;
+        } catch (error) {
+            console.error(`Error al inicializar el gráfico para VM ${vmId}:`, error);
+        }
+    });
+    
+    // Función para actualizar los datos en tiempo real mediante API
+    function updateMetrics() {
+        try {
+            // Mostrar indicador de carga
+            const refreshBtn = document.getElementById('refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.innerHTML = '<div class="spinner"></div> Actualizando...';
+            }
+            
+            fetch('/api/dashboard/metrics/')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error al obtener métricas');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Actualizar estadísticas de VMs
+                        data.data.vms.forEach(vm => {
+                            const vmCard = document.querySelector(`.vm-card[data-vmid="${vm.vmid}"]`);
+                            if (!vmCard) return;
+                            
+                            // Solo actualizar VMs en ejecución
+                            if (vm.status === 'running') {
+                                // Actualizar valores de CPU
+                                const cpuValue = vmCard.querySelector('.cpu-stat .vm-stat-value');
+                                const cpuBar = vmCard.querySelector('.cpu-stat .progress-bar');
+                                if (cpuValue) cpuValue.textContent = vm.cpu.toFixed(1) + '%';
+                                if (cpuBar) cpuBar.style.width = vm.cpu.toFixed(1) + '%';
+                                
+                                // Actualizar valores de RAM
+                                const memValue = vmCard.querySelector('.mem-stat .vm-stat-value');
+                                const memBar = vmCard.querySelector('.mem-stat .progress-bar');
+                                const memDetail = vmCard.querySelector('.mem-stat .mem-detail');
+                                if (memValue) memValue.textContent = vm.mem.toFixed(1) + '%';
+                                if (memBar) memBar.style.width = vm.mem.toFixed(1) + '%';
+                                if (memDetail) memDetail.textContent = `${vm.mem_used}/${vm.mem_total}MB`;
+                                
+                                // Actualizar valores de disco
+                                const diskRead = vmCard.querySelector('.disk-stats .disk-read');
+                                const diskWrite = vmCard.querySelector('.disk-stats .disk-write');
+                                const diskUsage = vmCard.querySelector('.disk-stats .disk-usage');
+                                if (diskRead) diskRead.textContent = `R: ${vm.disk_read.toFixed(1)}MB/s`;
+                                if (diskWrite) diskWrite.textContent = `W: ${vm.disk_write.toFixed(1)}MB/s`;
+                                if (diskUsage) diskUsage.textContent = `${vm.disk_used}/${vm.disk_total}GB`;
+                                
+                                // Actualizar valores de red
+                                const netIn = vmCard.querySelector('.net-stats .net-in');
+                                const netOut = vmCard.querySelector('.net-stats .net-out');
+                                if (netIn) netIn.textContent = `↓ ${vm.net_in.toFixed(1)}Mbps`;
+                                if (netOut) netOut.textContent = `↑ ${vm.net_out.toFixed(1)}Mbps`;
+                                
+                                // Actualizar gráficos si existen
+                                if (vmCharts[vm.vmid]) {
+                                    updateVmChart(vm);
+                                }
+                            }
+                        });
+                        
+                        // Actualizar la hora de última actualización
+                        const lastUpdate = document.getElementById('last-update');
+                        if (lastUpdate) {
+                            lastUpdate.textContent = new Date().toLocaleTimeString();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al actualizar métricas:', error);
+                })
+                .finally(() => {
+                    // Restaurar botón de actualización
+                    const refreshBtn = document.getElementById('refresh-btn');
+                    if (refreshBtn) {
+                        refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
+                    }
+                });
+        } catch (error) {
+            console.error('Error en la función updateMetrics:', error);
+            const refreshBtn = document.getElementById('refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
+            }
+        }
+    }
+    
+    // Función para actualizar un gráfico de VM específico
+    function updateVmChart(vm) {
+        fetch(`/api/vms/${vm.node}/${vm.vmid}/metrics/`)
+            .then(response => response.json())
+            .then(vmData => {
+                if (vmData.success && vmCharts[vm.vmid]) {
+                    const chart = vmCharts[vm.vmid];
+                    const history = vmData.data.history;
+                    
+                    // Si hay datos históricos, actualizar el gráfico
+                    if (history && history.cpu && history.cpu.length > 0) {
+                        // Usar los últimos 10 puntos o menos si no hay suficientes
+                        const points = Math.min(history.cpu.length, 10);
+                        chart.data.datasets[0].data = history.cpu.slice(-points);
+                        chart.data.datasets[1].data = history.mem.slice(-points);
+                        
+                        // Actualizar etiquetas de tiempo si hay timestamps
+                        if (history.timestamps && history.timestamps.length >= points) {
+                            const timeLabels = history.timestamps.slice(-points).map(ts => {
+                                const date = new Date(ts * 1000);
+                                return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                            });
+                            chart.data.labels = timeLabels;
+                        }
+                    } else {
+                        // Si no hay datos históricos, agregar el valor actual
+                        chart.data.datasets[0].data.shift();
+                        chart.data.datasets[0].data.push(vmData.data.cpu);
+                        
+                        chart.data.datasets[1].data.shift();
+                        chart.data.datasets[1].data.push(vmData.data.mem);
+                        
+                        // Actualizar etiqueta de tiempo
+                        const now = new Date();
+                        chart.data.labels.shift();
+                        chart.data.labels.push(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+                    }
+                    
+                    // Actualizar el gráfico
+                    chart.update();
+                }
+            })
+            .catch(error => {
+                console.error(`Error al obtener métricas detalladas para VM ${vm.vmid}:`, error);
+            });
+    }
+    
+    // Filtrado de máquinas virtuales
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const vmCards = document.querySelectorAll('.vm-card');
+    
+    filterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Desactivar todos los botones
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            // Activar el botón actual
+            button.classList.add('active');
+            
+            const filter = button.getAttribute('data-filter');
+            
+            // Filtrar tarjetas
+            vmCards.forEach(card => {
+                const status = card.getAttribute('data-status');
+                const type = card.getAttribute('data-type');
+                
+                if (filter === 'all' || 
+                    (filter === 'running' && status === 'running') || 
+                    (filter === 'stopped' && status === 'stopped') || 
+                    (filter === type)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+    
+    // Manejar acciones de VM con confirmación y retroalimentación
+    document.querySelectorAll('.vm-action-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const action = this.getAttribute('data-action');
+            const url = this.getAttribute('href');
+            
+            // Pedir confirmación solo para acciones destructivas
+            if (action === 'stop' || action === 'restart') {
+                if (!confirm(`¿Está seguro que desea ${action === 'stop' ? 'detener' : 'reiniciar'} esta máquina virtual?`)) {
+                    return;
+                }
+            }
+            
+            // Cambiar el botón a estado de carga
+            const originalContent = this.innerHTML;
+            this.innerHTML = '<div class="spinner"></div>';
+            this.disabled = true;
+            
+            // Realizar la acción
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Mostrar mensaje de éxito y recargar después de un tiempo
+                    alert(`Acción '${action}' iniciada correctamente`);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 3000);
+                } else {
+                    // Mostrar error
+                    alert(`Error: ${data.message}`);
+                    this.innerHTML = originalContent;
+                    this.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Ha ocurrido un error al procesar la solicitud');
+                this.innerHTML = originalContent;
+                this.disabled = false;
+            });
+        });
+    });
+    
+    // Botón de actualización manual
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            updateMetrics();
+        });
+    }
+    
+    // Actualización periódica
+    setInterval(updateMetrics, 10000);
+    
+    // Primera actualización al cargar
+    setTimeout(updateMetrics, 1000);
+    
+    // Recargar la página cada 5 minutos para evitar problemas con sesiones
     setTimeout(function() {
         location.reload();
-    }, 30000);
+    }, 300000);
 </script>
 {% endblock %}

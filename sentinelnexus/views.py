@@ -6,6 +6,7 @@ from django.conf import settings
 from proxmoxer import ProxmoxAPI, AuthenticationError
 import json
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -662,4 +663,318 @@ def server_list(request):
         return render(request, 'server_list.html', {
             'connection_error': True,
             'error_message': str(e)
+        })
+
+@login_required
+def api_vm_metrics(request, node_name, vmid):
+    """
+    API endpoint para obtener métricas en tiempo real de una VM o contenedor.
+    """
+    try:
+        proxmox = get_proxmox_connection()
+        
+        # Intentar determinar el tipo de VM
+        vm_type = None
+        try:
+            proxmox.nodes(node_name).qemu(vmid).status.current.get()
+            vm_type = 'qemu'
+        except:
+            try:
+                proxmox.nodes(node_name).lxc(vmid).status.current.get()
+                vm_type = 'lxc'
+            except:
+                return JsonResponse({
+                    'success': False,
+                    'message': f"No se encontró VM con ID {vmid} en el nodo {node_name}"
+                })
+        
+        # Obtener métricas actuales
+        if vm_type == 'qemu':
+            vm_status = proxmox.nodes(node_name).qemu(vmid).status.current.get()
+            
+            # Calcular métricas
+            cpu = vm_status.get('cpu', 0) * 100  # Convertir a porcentaje
+            mem = vm_status.get('mem', 0) / vm_status.get('maxmem', 1) * 100
+            mem_used = round(vm_status.get('mem', 0) / (1024 ** 2), 2)  # MB
+            mem_total = round(vm_status.get('maxmem', 0) / (1024 ** 2), 2)  # MB
+            disk_read = round(vm_status.get('diskread', 0) / (1024 ** 2), 2)  # MB/s
+            disk_write = round(vm_status.get('diskwrite', 0) / (1024 ** 2), 2)  # MB/s
+            net_in = round(vm_status.get('netin', 0) / (1024 ** 2), 2)  # Mbps
+            net_out = round(vm_status.get('netout', 0) / (1024 ** 2), 2)  # Mbps
+            
+            # Obtener datos del disco
+            try:
+                disk_info = proxmox.nodes(node_name).qemu(vmid).rrddata.get(timeframe='hour')
+                if disk_info:
+                    last_data = disk_info[-1]
+                    disk_used = round(last_data.get('disk', 0) / (1024 ** 3), 2)  # GB
+                else:
+                    disk_used = 0
+            except:
+                disk_used = 0
+                
+            # Obtener historial de CPU y memoria para gráficas
+            try:
+                rrd_data = proxmox.nodes(node_name).qemu(vmid).rrddata.get(
+                    timeframe='hour',
+                    cf='AVERAGE'
+                )
+                
+                cpu_history = []
+                mem_history = []
+                disk_history = []
+                net_history = []
+                timestamps = []
+                
+                for point in rrd_data:
+                    time_val = point.get('time', 0)
+                    timestamps.append(time_val)
+                    cpu_history.append(point.get('cpu', 0) * 100)
+                    mem_val = 0
+                    if 'mem' in point and 'maxmem' in point and point['maxmem'] > 0:
+                        mem_val = (point['mem'] / point['maxmem']) * 100
+                    mem_history.append(mem_val)
+                    disk_history.append(point.get('disk', 0) / (1024 ** 3))
+                    
+                    net_val = 0
+                    if 'netin' in point and 'netout' in point:
+                        net_val = (point['netin'] + point['netout']) / (1024 ** 2)
+                    net_history.append(net_val)
+            except Exception as e:
+                logger.warning(f"Error al obtener datos RRD: {str(e)}")
+                cpu_history = []
+                mem_history = []
+                disk_history = []
+                net_history = []
+                timestamps = []
+                
+        else:  # 'lxc'
+            vm_status = proxmox.nodes(node_name).lxc(vmid).status.current.get()
+            
+            # Calcular métricas
+            cpu = vm_status.get('cpu', 0) * 100  # Convertir a porcentaje
+            mem = vm_status.get('mem', 0) / vm_status.get('maxmem', 1) * 100
+            mem_used = round(vm_status.get('mem', 0) / (1024 ** 2), 2)  # MB
+            mem_total = round(vm_status.get('maxmem', 0) / (1024 ** 2), 2)  # MB
+            disk_read = round(vm_status.get('diskread', 0) / (1024 ** 2), 2)  # MB/s
+            disk_write = round(vm_status.get('diskwrite', 0) / (1024 ** 2), 2)  # MB/s
+            net_in = round(vm_status.get('netin', 0) / (1024 ** 2), 2)  # Mbps
+            net_out = round(vm_status.get('netout', 0) / (1024 ** 2), 2)  # Mbps
+            disk_used = round(vm_status.get('disk', 0) / (1024 ** 3), 2)  # GB
+            
+            # Obtener historial para gráficas
+            try:
+                rrd_data = proxmox.nodes(node_name).lxc(vmid).rrddata.get(
+                    timeframe='hour',
+                    cf='AVERAGE'
+                )
+                
+                cpu_history = []
+                mem_history = []
+                disk_history = []
+                net_history = []
+                timestamps = []
+                
+                for point in rrd_data:
+                    time_val = point.get('time', 0)
+                    timestamps.append(time_val)
+                    cpu_history.append(point.get('cpu', 0) * 100)
+                    mem_val = 0
+                    if 'mem' in point and 'maxmem' in point and point['maxmem'] > 0:
+                        mem_val = (point['mem'] / point['maxmem']) * 100
+                    mem_history.append(mem_val)
+                    disk_history.append(point.get('disk', 0) / (1024 ** 3))
+                    
+                    net_val = 0
+                    if 'netin' in point and 'netout' in point:
+                        net_val = (point['netin'] + point['netout']) / (1024 ** 2)
+                    net_history.append(net_val)
+            except Exception as e:
+                logger.warning(f"Error al obtener datos RRD: {str(e)}")
+                cpu_history = []
+                mem_history = []
+                disk_history = []
+                net_history = []
+                timestamps = []
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'type': vm_type,
+                'status': vm_status.get('status', 'unknown'),
+                'cpu': round(cpu, 1),
+                'mem': round(mem, 1),
+                'mem_used': mem_used,
+                'mem_total': mem_total,
+                'disk_read': disk_read,
+                'disk_write': disk_write,
+                'net_in': net_in,
+                'net_out': net_out,
+                'disk_used': disk_used,
+                'timestamp': vm_status.get('time', 0),
+                'history': {
+                    'timestamps': timestamps,
+                    'cpu': cpu_history,
+                    'mem': mem_history,
+                    'disk': disk_history,
+                    'net': net_history
+                }
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error al obtener métricas de VM {vmid}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+@login_required
+def api_dashboard_metrics(request):
+    """
+    API endpoint para obtener métricas en tiempo real de todas las VMs y nodos.
+    """
+    try:
+        proxmox = get_proxmox_connection()
+        nodes_data = []
+        vms_data = []
+        
+        # Obtener todos los nodos
+        nodes = proxmox.nodes.get()
+        
+        for node in nodes:
+            node_name = node['node']
+            
+            # Obtener métricas del nodo
+            try:
+                node_status = proxmox.nodes(node_name).status.get()
+                node_metrics = {
+                    'node': node_name,
+                    'status': node['status'],
+                    'cpu': node_status.get('cpu', 0) * 100,  # Convertir a porcentaje
+                    'mem': node_status.get('memory', {}).get('used', 0) / node_status.get('memory', {}).get('total', 1) * 100,
+                    'disk_used': round(node_status.get('rootfs', {}).get('used', 0) / (1024 ** 3), 2),  # GB
+                    'disk_total': round(node_status.get('rootfs', {}).get('total', 1) / (1024 ** 3), 2),  # GB
+                    'uptime': node_status.get('uptime', 0),
+                    'ping': 15  # ms (simulado)
+                }
+                nodes_data.append(node_metrics)
+            except Exception as e:
+                logger.warning(f"Error al obtener métricas del nodo {node_name}: {str(e)}")
+            
+            # Obtener VMs (QEMU)
+            try:
+                qemu_vms = proxmox.nodes(node_name).qemu.get()
+                for vm in qemu_vms:
+                    vm_data = {
+                        'vmid': vm['vmid'],
+                        'name': vm.get('name', f"VM {vm['vmid']}"),
+                        'node': node_name,
+                        'type': 'qemu',
+                        'status': vm.get('status', 'unknown'),
+                        'cpu': 0,
+                        'mem': 0,
+                        'mem_used': 0,
+                        'mem_total': 0,
+                        'disk_read': 0,
+                        'disk_write': 0,
+                        'net_in': 0,
+                        'net_out': 0,
+                        'disk_used': 0,
+                        'disk_total': 0
+                    }
+                    
+                    # Obtener métricas adicionales si la VM está en ejecución
+                    if vm.get('status') == 'running':
+                        try:
+                            vm_status = proxmox.nodes(node_name).qemu(vm['vmid']).status.current.get()
+                            
+                            vm_data['cpu'] = vm_status.get('cpu', 0) * 100
+                            vm_data['mem'] = vm_status.get('mem', 0) / vm_status.get('maxmem', 1) * 100
+                            vm_data['mem_used'] = round(vm_status.get('mem', 0) / (1024 ** 2), 2)  # MB
+                            vm_data['mem_total'] = round(vm_status.get('maxmem', 0) / (1024 ** 2), 2)  # MB
+                            vm_data['disk_read'] = round(vm_status.get('diskread', 0) / (1024 ** 2), 2)  # MB/s
+                            vm_data['disk_write'] = round(vm_status.get('diskwrite', 0) / (1024 ** 2), 2)  # MB/s
+                            vm_data['net_in'] = round(vm_status.get('netin', 0) / (1024 ** 2), 2)  # Mbps
+                            vm_data['net_out'] = round(vm_status.get('netout', 0) / (1024 ** 2), 2)  # Mbps
+                            vm_data['ping'] = 10  # ms (simulado)
+                            
+                            # Calcular uso de disco (simplificado para respuesta rápida)
+                            vm_data['disk_used'] = 0
+                            vm_data['disk_total'] = 0
+                        except Exception as e:
+                            logger.warning(f"Error al obtener métricas de VM {vm['vmid']}: {str(e)}")
+                    
+                    vms_data.append(vm_data)
+            except Exception as e:
+                logger.warning(f"Error al obtener VMs QEMU del nodo {node_name}: {str(e)}")
+            
+            # Obtener LXC containers
+            try:
+                lxc_containers = proxmox.nodes(node_name).lxc.get()
+                for container in lxc_containers:
+                    container_data = {
+                        'vmid': container['vmid'],
+                        'name': container.get('name', f"CT {container['vmid']}"),
+                        'node': node_name,
+                        'type': 'lxc',
+                        'status': container.get('status', 'unknown'),
+                        'cpu': 0,
+                        'mem': 0,
+                        'mem_used': 0,
+                        'mem_total': 0,
+                        'disk_read': 0,
+                        'disk_write': 0,
+                        'net_in': 0,
+                        'net_out': 0,
+                        'disk_used': 0,
+                        'disk_total': 0
+                    }
+                    
+                    # Obtener métricas adicionales si el contenedor está en ejecución
+                    if container.get('status') == 'running':
+                        try:
+                            container_status = proxmox.nodes(node_name).lxc(container['vmid']).status.current.get()
+                            
+                            container_data['cpu'] = container_status.get('cpu', 0) * 100
+                            container_data['mem'] = container_status.get('mem', 0) / container_status.get('maxmem', 1) * 100
+                            container_data['mem_used'] = round(container_status.get('mem', 0) / (1024 ** 2), 2)  # MB
+                            container_data['mem_total'] = round(container_status.get('maxmem', 0) / (1024 ** 2), 2)  # MB
+                            container_data['disk_read'] = round(container_status.get('diskread', 0) / (1024 ** 2), 2)  # MB/s
+                            container_data['disk_write'] = round(container_status.get('diskwrite', 0) / (1024 ** 2), 2)  # MB/s
+                            container_data['net_in'] = round(container_status.get('netin', 0) / (1024 ** 2), 2)  # Mbps
+                            container_data['net_out'] = round(container_status.get('netout', 0) / (1024 ** 2), 2)  # Mbps
+                            container_data['ping'] = 8  # ms (simulado)
+                            
+                            # Calcular uso de disco
+                            container_data['disk_used'] = round(container_status.get('disk', 0) / (1024 ** 3), 2)  # GB
+                            container_data['disk_total'] = round(container_status.get('maxdisk', 0) / (1024 ** 3), 2)  # GB
+                        except Exception as e:
+                            logger.warning(f"Error al obtener métricas de LXC {container['vmid']}: {str(e)}")
+                    
+                    vms_data.append(container_data)
+            except Exception as e:
+                logger.warning(f"Error al obtener contenedores LXC del nodo {node_name}: {str(e)}")
+        
+        # Calcular VMs en ejecución
+        running_vms = sum(1 for vm in vms_data if vm.get('status') == 'running')
+        
+        return JsonResponse({
+            'success': True,
+            'timestamp': int(time.time()),
+            'data': {
+                'nodes': nodes_data,
+                'vms': vms_data,
+                'summary': {
+                    'total_vms': len(vms_data),
+                    'running_vms': running_vms,
+                    'total_nodes': len(nodes_data),
+                    'online_nodes': sum(1 for node in nodes_data if node.get('status') == 'online')
+                }
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error al obtener métricas del dashboard: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
         })

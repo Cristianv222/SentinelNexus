@@ -29,4 +29,8 @@ urlpatterns = [
     path('api/nodes/', views.api_get_nodes, name='api_nodes'),
     path('api/vms/', views.api_get_vms, name='api_vms'),
     path('api/vms/<str:node_name>/<int:vmid>/status/', views.api_vm_status, name='api_vm_status'),
+    
+    # Nuevas APIs para gráficas de métricas
+    path('api/vms/<str:node_name>/<int:vmid>/metrics/', views.api_vm_metrics, name='api_vm_metrics'),
+    path('api/dashboard/metrics/', views.api_dashboard_metrics, name='api_dashboard_metrics'),
 ]
