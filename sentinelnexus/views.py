@@ -7,6 +7,8 @@ from proxmoxer import ProxmoxAPI, AuthenticationError
 import json
 import logging
 import time
+import random
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -978,3 +980,432 @@ def api_dashboard_metrics(request):
             'success': False,
             'message': str(e)
         })
+
+# Nuevas vistas para las métricas
+@login_required
+def metrics_dashboard(request):
+    """
+    Dashboard de métricas personalizado utilizando Chart.js
+    """
+    try:
+        proxmox = get_proxmox_connection()
+        
+        # Obtener todos los nodos para el selector
+        nodes = []
+        try:
+            nodes = proxmox.nodes.get()
+        except Exception as e:
+            logger.warning(f"Error al obtener los nodos para el dashboard de métricas: {str(e)}")
+        
+        return render(request, 'metrics_dashboard.html', {
+            'nodes': nodes,
+        })
+    except Exception as e:
+        messages.error(request, f"Error al cargar el dashboard de métricas: {str(e)}")
+        return redirect('dashboard')
+
+@login_required
+def grafana_dashboard(request):
+    """
+    Vista que integra un dashboard de Grafana vía iframe
+    """
+    # Aquí podrías pasar cualquier parámetro adicional que necesites
+    dashboard_url = settings.GRAFANA_URL if hasattr(settings, 'GRAFANA_URL') else "http://localhost:3000"
+    dashboard_id = settings.GRAFANA_DASHBOARD_ID if hasattr(settings, 'GRAFANA_DASHBOARD_ID') else "proxmox-monitoring"
+    
+    return render(request, 'grafana.html', {
+        'dashboard_url': dashboard_url,
+        'dashboard_id': dashboard_id
+    })
+
+@login_required
+def api_metrics(request):
+    """
+    API endpoint para obtener métricas históricas
+    """
+    timeframe = request.GET.get('timeframe', 'hour')
+    node_filter = request.GET.get('node', None)
+    vm_filter = request.GET.get('vmid', None)
+    
+    try:
+        proxmox = get_proxmox_connection()
+        
+        # Obtener timestamps según el timeframe
+        end_time = datetime.now()
+        
+        if timeframe == 'hour':
+            start_time = end_time - timedelta(hours=1)
+            interval = timedelta(minutes=5)
+            rrd_timeframe = 'hour'
+        elif timeframe == 'day':
+            start_time = end_time - timedelta(days=1)
+            interval = timedelta(hours=1)
+            rrd_timeframe = 'day'
+        elif timeframe == 'week':
+            start_time = end_time - timedelta(days=7)
+            interval = timedelta(hours=6)
+            rrd_timeframe = 'week'
+        else:  # month
+            start_time = end_time - timedelta(days=30)
+            interval = timedelta(days=1)
+            rrd_timeframe = 'month'
+        
+        # Estructura para almacenar datos
+        metrics_data = {
+            'timestamps': [],
+            'cpu_history': {'nodes': {}, 'vms': {}},
+            'memory_history': {'nodes': {}, 'vms': {}},
+            'disk_history': {'read': {}, 'write': {}},
+            'network_history': {'in': {}, 'out': {}},
+            'top_vms': [],
+            'averages': {
+                'cpu': 0,
+                'memory': 0,
+                'active_vms': 0,
+                'active_nodes': 0
+            }
+        }
+        
+        # Recolectar datos de nodos
+        nodes = proxmox.nodes.get()
+        active_nodes = 0
+        total_cpu = 0
+        total_mem = 0
+        
+        for node in nodes:
+            node_name = node['node']
+            
+            # Filtrar por nodo si se especifica
+            if node_filter and node_name != node_filter:
+                continue
+            
+            # Obtener estadísticas del nodo
+            try:
+                # Verificar si el nodo está en línea
+                if node.get('status') == 'online':
+                    active_nodes += 1
+                    
+                    # Obtener estadísticas RRD para gráficos
+                    rrd_data = proxmox.nodes(node_name).rrddata.get(
+                        timeframe=rrd_timeframe,
+                        cf='AVERAGE'
+                    )
+                    
+                    # Procesar datos RRD
+                    cpu_data = []
+                    mem_data = []
+                    timestamps = []
+                    
+                    for point in rrd_data:
+                        time_val = point.get('time', 0)
+                        timestamps.append(datetime.fromtimestamp(time_val).strftime('%Y-%m-%d %H:%M:%S'))
+                        
+                        # Datos de CPU
+                        cpu_val = point.get('cpu', 0) * 100  # Convertir a porcentaje
+                        cpu_data.append(cpu_val)
+                        
+                        # Datos de Memoria
+                        mem_val = 0
+                        if 'memused' in point and 'memtotal' in point and point['memtotal'] > 0:
+                            mem_val = (point['memused'] / point['memtotal']) * 100
+                        mem_data.append(mem_val)
+                    
+                    # Almacenar datos del nodo
+                    metrics_data['cpu_history']['nodes'][node_name] = cpu_data
+                    metrics_data['memory_history']['nodes'][node_name] = mem_data
+                    
+                    # Si este es el primer nodo, guardar los timestamps
+                    if not metrics_data['timestamps'] and timestamps:
+                        metrics_data['timestamps'] = timestamps
+                    
+                    # Obtener estadísticas actuales
+                    node_status = proxmox.nodes(node_name).status.get()
+                    cpu_usage = node_status.get('cpu', 0) * 100
+                    mem_usage = node_status.get('memory', {}).get('used', 0) / node_status.get('memory', {}).get('total', 1) * 100
+                    
+                    total_cpu += cpu_usage
+                    total_mem += mem_usage
+            except Exception as e:
+                logger.warning(f"Error al obtener estadísticas del nodo {node_name}: {str(e)}")
+        
+        # Recolectar datos de VMs
+        vms = []
+        active_vms = 0
+        
+        # Obtener todas las VMs de todos los nodos
+        for node in nodes:
+            node_name = node['node']
+            
+            # Filtrar por nodo si se especifica
+            if node_filter and node_name != node_filter:
+                continue
+            
+            # Obtener VMs (QEMU)
+            try:
+                qemu_vms = proxmox.nodes(node_name).qemu.get()
+                for vm in qemu_vms:
+                    vm['node'] = node_name
+                    vm['type'] = 'qemu'
+                    vms.append(vm)
+                    
+                    # Filtrar por VM si se especifica
+                    if vm_filter and str(vm['vmid']) != vm_filter:
+                        continue
+                    
+                    # Obtener métricas para VMs en ejecución
+                    if vm.get('status') == 'running':
+                        active_vms += 1
+                        
+                        try:
+                            # Obtener estado actual
+                            vm_status = proxmox.nodes(node_name).qemu(vm['vmid']).status.current.get()
+                            
+                            # Obtener datos RRD para gráficos
+                            vm_rrd_data = proxmox.nodes(node_name).qemu(vm['vmid']).rrddata.get(
+                                timeframe=rrd_timeframe,
+                                cf='AVERAGE'
+                            )
+                            
+                            # Procesar datos RRD
+                            vm_cpu_data = []
+                            vm_mem_data = []
+                            vm_disk_read = []
+                            vm_disk_write = []
+                            vm_net_in = []
+                            vm_net_out = []
+                            
+                            for point in vm_rrd_data:
+                                # Datos de CPU
+                                cpu_val = point.get('cpu', 0) * 100  # Convertir a porcentaje
+                                vm_cpu_data.append(cpu_val)
+                                
+                                # Datos de Memoria
+                                mem_val = 0
+                                if 'mem' in point and 'maxmem' in point and point['maxmem'] > 0:
+                                    mem_val = (point['mem'] / point['maxmem']) * 100
+                                vm_mem_data.append(mem_val)
+                                
+                                # Datos de Disco
+                                vm_disk_read.append(point.get('diskread', 0) / (1024 ** 2))  # MB/s
+                                vm_disk_write.append(point.get('diskwrite', 0) / (1024 ** 2))  # MB/s
+                                
+                                # Datos de Red
+                                vm_net_in.append(point.get('netin', 0) / (1024 ** 2))  # Mbps
+                                vm_net_out.append(point.get('netout', 0) / (1024 ** 2))  # Mbps
+                            
+                            # Almacenar datos de la VM
+                            vm_name = vm.get('name', f"VM {vm['vmid']}")
+                            metrics_data['cpu_history']['vms'][vm_name] = vm_cpu_data
+                            metrics_data['memory_history']['vms'][vm_name] = vm_mem_data
+                            metrics_data['disk_history']['read'][vm_name] = vm_disk_read
+                            metrics_data['disk_history']['write'][vm_name] = vm_disk_write
+                            metrics_data['network_history']['in'][vm_name] = vm_net_in
+                            metrics_data['network_history']['out'][vm_name] = vm_net_out
+                            
+                            # Calcular uso actual para top VMs
+                            current_cpu = vm_status.get('cpu', 0) * 100
+                            current_mem = vm_status.get('mem', 0) / vm_status.get('maxmem', 1) * 100
+                            
+                            # Añadir a la lista de top VMs
+                            metrics_data['top_vms'].append({
+                                'id': vm['vmid'],
+                                'name': vm_name,
+                                'node': node_name,
+                                'cpu': round(current_cpu, 1),
+                                'memory': round(current_mem, 1),
+                                'disk_io': round(vm_status.get('diskread', 0) / (1024 ** 2) + vm_status.get('diskwrite', 0) / (1024 ** 2), 1),
+                                'network': round(vm_status.get('netin', 0) / (1024 ** 2) + vm_status.get('netout', 0) / (1024 ** 2), 1)
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error al obtener datos RRD para VM {vm['vmid']}: {str(e)}")
+            except Exception as e:
+                logger.warning(f"Error al obtener VMs QEMU del nodo {node_name}: {str(e)}")
+            
+            # Obtener contenedores LXC
+            try:
+                lxc_containers = proxmox.nodes(node_name).lxc.get()
+                for container in lxc_containers:
+                    container['node'] = node_name
+                    container['type'] = 'lxc'
+                    vms.append(container)
+                    
+                    # Filtrar por VM si se especifica
+                    if vm_filter and str(container['vmid']) != vm_filter:
+                        continue
+                    
+                    # Obtener métricas para contenedores en ejecución
+                    if container.get('status') == 'running':
+                        active_vms += 1
+                        
+                        try:
+                            # Obtener estado actual
+                            container_status = proxmox.nodes(node_name).lxc(container['vmid']).status.current.get()
+                            
+                            # Obtener datos RRD para gráficos
+                            container_rrd_data = proxmox.nodes(node_name).lxc(container['vmid']).rrddata.get(
+                                timeframe=rrd_timeframe,
+                                cf='AVERAGE'
+                            )
+                            
+                            # Procesar datos RRD (similar a las VMs)
+                            container_cpu_data = []
+                            container_mem_data = []
+                            container_disk_read = []
+                            container_disk_write = []
+                            container_net_in = []
+                            container_net_out = []
+                            
+                            for point in container_rrd_data:
+                                # Datos de CPU
+                                cpu_val = point.get('cpu', 0) * 100
+                                container_cpu_data.append(cpu_val)
+                                
+                                # Datos de Memoria
+                                mem_val = 0
+                                if 'mem' in point and 'maxmem' in point and point['maxmem'] > 0:
+                                    mem_val = (point['mem'] / point['maxmem']) * 100
+                                container_mem_data.append(mem_val)
+                                
+                                # Datos de Disco
+                                container_disk_read.append(point.get('diskread', 0) / (1024 ** 2))
+                                container_disk_write.append(point.get('diskwrite', 0) / (1024 ** 2))
+                                
+                                # Datos de Red
+                                container_net_in.append(point.get('netin', 0) / (1024 ** 2))
+                                container_net_out.append(point.get('netout', 0) / (1024 ** 2))
+                            
+                            # Almacenar datos del contenedor
+                            container_name = container.get('name', f"CT {container['vmid']}")
+                            metrics_data['cpu_history']['vms'][container_name] = container_cpu_data
+                            metrics_data['memory_history']['vms'][container_name] = container_mem_data
+                            metrics_data['disk_history']['read'][container_name] = container_disk_read
+                            metrics_data['disk_history']['write'][container_name] = container_disk_write
+                            metrics_data['network_history']['in'][container_name] = container_net_in
+                            metrics_data['network_history']['out'][container_name] = container_net_out
+                            
+                            # Calcular uso actual para top VMs
+                            current_cpu = container_status.get('cpu', 0) * 100
+                            current_mem = container_status.get('mem', 0) / container_status.get('maxmem', 1) * 100
+# Añadir a la lista de top VMs
+                            metrics_data['top_vms'].append({
+                                'id': container['vmid'],
+                                'name': container_name,
+                                'node': node_name,
+                                'cpu': round(current_cpu, 1),
+                                'memory': round(current_mem, 1),
+                                'disk_io': round(container_status.get('diskread', 0) / (1024 ** 2) + container_status.get('diskwrite', 0) / (1024 ** 2), 1),
+                                'network': round(container_status.get('netin', 0) / (1024 ** 2) + container_status.get('netout', 0) / (1024 ** 2), 1)
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error al obtener datos RRD para contenedor {container['vmid']}: {str(e)}")
+            except Exception as e:
+                logger.warning(f"Error al obtener contenedores LXC del nodo {node_name}: {str(e)}")
+        
+        # Calcular promedios
+        if active_nodes > 0:
+            metrics_data['averages']['cpu'] = round(total_cpu / active_nodes, 1)
+            metrics_data['averages']['memory'] = round(total_mem / active_nodes, 1)
+        
+        metrics_data['averages']['active_vms'] = active_vms
+        metrics_data['averages']['active_nodes'] = active_nodes
+        
+        # Ordenar top VMs por uso de CPU
+        metrics_data['top_vms'] = sorted(metrics_data['top_vms'], key=lambda x: x['cpu'], reverse=True)[:10]
+        
+        return JsonResponse({
+            'success': True,
+            'data': metrics_data
+        })
+    except Exception as e:
+        logger.error(f"Error al obtener métricas históricas: {str(e)}")
+        
+        # Si hay un error, devolver datos simulados para pruebas
+        # Esto se puede eliminar en producción
+        return JsonResponse({
+            'success': False,
+            'message': str(e),
+            'fallback_data': True,
+            'data': generate_fallback_metrics_data(timeframe)
+        })
+
+def generate_fallback_metrics_data(timeframe):
+    """
+    Genera datos simulados para pruebas cuando hay errores con Proxmox
+    """
+    # Generar timestamps
+    end_time = datetime.now()
+    
+    if timeframe == 'hour':
+        start_time = end_time - timedelta(hours=1)
+        interval = timedelta(minutes=5)
+    elif timeframe == 'day':
+        start_time = end_time - timedelta(days=1)
+        interval = timedelta(hours=1)
+    elif timeframe == 'week':
+        start_time = end_time - timedelta(days=7)
+        interval = timedelta(hours=6)
+    else:  # month
+        start_time = end_time - timedelta(days=30)
+        interval = timedelta(days=1)
+    
+    timestamps = []
+    current = start_time
+    while current <= end_time:
+        timestamps.append(current.strftime('%Y-%m-%d %H:%M:%S'))
+        current += interval
+    
+    # Generar datos simulados
+    nodes = ['node1', 'node2']
+    vms = ['vm1', 'vm2', 'vm3', 'vm4']
+    
+    cpu_history = {
+        'nodes': {node: [random.uniform(10, 80) for _ in timestamps] for node in nodes},
+        'vms': {vm: [random.uniform(5, 95) for _ in timestamps] for vm in vms}
+    }
+    
+    memory_history = {
+        'nodes': {node: [random.uniform(20, 70) for _ in timestamps] for node in nodes},
+        'vms': {vm: [random.uniform(10, 90) for _ in timestamps] for vm in vms}
+    }
+    
+    disk_history = {
+        'read': {vm: [random.uniform(0, 50) for _ in timestamps] for vm in vms},
+        'write': {vm: [random.uniform(0, 40) for _ in timestamps] for vm in vms}
+    }
+    
+    network_history = {
+        'in': {vm: [random.uniform(0, 100) for _ in timestamps] for vm in vms},
+        'out': {vm: [random.uniform(0, 80) for _ in timestamps] for vm in vms}
+    }
+    
+    # Generar datos para top VMs
+    top_vms = []
+    for vm in vms:
+        top_vms.append({
+            'id': random.randint(100, 999),
+            'name': vm,
+            'node': random.choice(nodes),
+            'cpu': random.uniform(10, 95),
+            'memory': random.uniform(10, 95),
+            'disk_io': random.uniform(0, 100),
+            'network': random.uniform(0, 200)
+        })
+    
+    # Calcular promedios
+    avg_cpu = sum(sum(cpu_history['nodes'][node]) for node in nodes) / (len(nodes) * len(timestamps))
+    avg_mem = sum(sum(memory_history['nodes'][node]) for node in nodes) / (len(nodes) * len(timestamps))
+    
+    return {
+        'timestamps': timestamps,
+        'cpu_history': cpu_history,
+        'memory_history': memory_history,
+        'disk_history': disk_history,
+        'network_history': network_history,
+        'averages': {
+            'cpu': round(avg_cpu, 1),
+            'memory': round(avg_mem, 1),
+            'active_vms': len(vms),
+            'active_nodes': len(nodes)
+        },
+        'top_vms': top_vms
+    }
