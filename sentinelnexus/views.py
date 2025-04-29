@@ -16,11 +16,173 @@ from submodulos.models import (
 )
 import threading
 import os
-import random
 import string
 import subprocess
+import requests
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 
+# En sentinelnexus/views.py
+def test_grafana_connection(request):
+    """Vista para diagnosticar problemas de conexión con Grafana"""
+    
+    grafana_url = 'http://10.100.100.201:3000'
+    results = []
+    
+    # Prueba 1: Conexión HTTP básica
+    try:
+        import requests
+        
+        response = requests.get(grafana_url, timeout=5, verify=False)
+        results.append({
+            'name': 'Conexión HTTP',
+            'success': True,
+            'details': f"Status: {response.status_code}, Content Length: {len(response.content)} bytes"
+        })
+    except Exception as e:
+        results.append({
+            'name': 'Conexión HTTP',
+            'success': False,
+            'details': f"Error: {type(e).__name__}: {str(e)}"
+        })
+    
+    # Prueba 2: Socket TCP
+    try:
+        import socket
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(5)
+        result = s.connect_ex(('10.100.100.201', 3000))
+        s.close()
+        
+        if result == 0:
+            results.append({
+                'name': 'Socket TCP',
+                'success': True,
+                'details': "Puerto 3000 abierto y accesible"
+            })
+        else:
+            results.append({
+                'name': 'Socket TCP',
+                'success': False,
+                'details': f"Puerto 3000 no accesible (Código: {result})"
+            })
+    except Exception as e:
+        results.append({
+            'name': 'Socket TCP',
+            'success': False,
+            'details': f"Error: {type(e).__name__}: {str(e)}"
+        })
+    
+    # Construir respuesta HTML
+    html = f"""
+    <html>
+    <head>
+        <title>Test de Conexión a Grafana</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; }}
+            .success {{ color: green; }}
+            .error {{ color: red; }}
+            pre {{ background: #f5f5f5; padding: 10px; border-radius: 5px; }}
+        </style>
+    </head>
+    <body>
+        <h1>Diagnóstico de Conexión a Grafana</h1>
+        <p><strong>URL:</strong> {grafana_url}</p>
+        
+        <h2>Resultados:</h2>
+    """
+    
+    for result in results:
+        status_class = "success" if result['success'] else "error"
+        status_icon = "✅" if result['success'] else "❌"
+        
+        html += f"""
+        <div class="result">
+            <h3 class="{status_class}">{status_icon} {result['name']}</h3>
+            <pre>{result['details']}</pre>
+        </div>
+        """
+    
+    html += """
+    </body>
+    </html>
+    """
+    
+    return HttpResponse(html)
+
+@login_required
+def grafana_dashboard(request):
+    """
+    Vista que integra un dashboard de Grafana vía iframe
+    """
+    return render(request, 'grafana.html', {
+        'dashboard_url': settings.GRAFANA_URL,
+        'dashboard_id': settings.GRAFANA_DASHBOARD_ID
+    })
+
+@csrf_exempt
+def grafana_proxy(request, path=''):
+    """
+    Proxy para Grafana - solución robusta
+    """
+    grafana_url = 'http://10.100.100.201:3000'
+    
+    # Construir URL completa
+    if path:
+        url = f"{grafana_url}/{path}"
+    else:
+        url = grafana_url
+    
+    print(f"Proxying request to: {url}")
+    
+    # Reenviar la solicitud a Grafana
+    try:
+        # Preparar parámetros
+        params = request.GET.dict() if request.method == 'GET' else None
+        data = request.body if request.method in ['POST', 'PUT', 'PATCH'] else None
+        
+        # Copiar headers relevantes
+        headers = {}
+        for header, value in request.headers.items():
+            if header.lower() not in ['host', 'content-length']:
+                headers[header] = value
+        
+        # Hacer la solicitud a Grafana
+        response = requests.request(
+            method=request.method,
+            url=url,
+            params=params,
+            data=data,
+            headers=headers,
+            timeout=10,
+            verify=False  # Desactivar verificación SSL para pruebas
+        )
+        
+        # Crear respuesta para Django
+        django_response = HttpResponse(
+            content=response.content,
+            status=response.status_code,
+            content_type=response.headers.get('Content-Type', 'text/html')
+        )
+        
+        # Copiar headers relevantes de la respuesta
+        for header, value in response.headers.items():
+            if header.lower() not in ['content-length', 'transfer-encoding', 'connection']:
+                django_response[header] = value
+        
+        return django_response
+    
+    except Exception as e:
+        error_message = f"Error conectando con Grafana ({url}): {str(e)}"
+        print(f"PROXY ERROR: {error_message}")
+        return HttpResponse(
+            f"<h1>Error de conexión</h1><p>{error_message}</p>",
+            content_type='text/html',
+            status=502
+        )
+    
 logger = logging.getLogger(__name__)
 
 def get_proxmox_connection():

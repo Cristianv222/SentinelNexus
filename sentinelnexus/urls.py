@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.views.generic.base import RedirectView, TemplateView
-from django.urls import path, include
+from django.urls import path, re_path, include
 from django.contrib.auth.views import LoginView, LogoutView
 from . import views
 
@@ -41,4 +41,16 @@ urlpatterns = [
     path('sync-proxmox/', views.sync_proxmox, name='sync_proxmox'),
     path('vm/<str:node_name>/<int:vmid>/<str:vm_type>/console/', views.vm_console, name='vm_console'),
 
+
+
+
+    path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
+    
+    # Proxy para Grafana (path vacío)
+    path('grafana-proxy/', views.grafana_proxy, name='grafana_proxy_base'),
+    
+    # Proxy para Grafana (con path)
+    path('grafana-proxy/<path:path>', views.grafana_proxy, name='grafana_proxy'),
+    # En sentinelnexus/urls.py
+    path('test-grafana/', views.test_grafana_connection, name='test_grafana'),
 ]
