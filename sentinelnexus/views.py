@@ -15,6 +15,10 @@ from submodulos.models import (
     AuditoriaPeriodo, AuditoriaRecursosCabecera, AuditoriaRecursosDetalle
 )
 import threading
+import os
+import random
+import string
+import subprocess
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
@@ -2013,3 +2017,53 @@ def generate_fallback_metrics_data(timeframe):
         },
         'top_vms': top_vms
     }
+@login_required
+def vm_console(request, node_name, vmid, vm_type):
+    """Vista para mostrar la consola de una máquina virtual."""
+    
+    # Verificar que el tipo sea qemu (solo VMs, no contenedores)
+    if vm_type != 'qemu':
+        messages.error(request, "La consola solo está disponible para máquinas virtuales KVM")
+        return redirect('vm_detail_with_type', node_name=node_name, vmid=vmid, vm_type=vm_type)
+    
+    try:
+        # Usar la función existente para obtener la conexión Proxmox
+        proxmox = get_proxmox_connection()
+        
+        # Obtener información de la VM
+        vm_info = proxmox.nodes(node_name).qemu(vmid).status.current.get()
+        
+        # Verificar si la VM está en ejecución
+        if vm_info['status'] != 'running':
+            messages.warning(request, "La máquina virtual debe estar en ejecución para acceder a la consola")
+            return redirect('vm_detail_with_type', node_name=node_name, vmid=vmid, vm_type=vm_type)
+        
+        # Obtener el ticket de VNC
+        vnc_config = proxmox.nodes(node_name).qemu(vmid).vncproxy.post()
+        
+        # Configurar proxy websocket
+        console_port = random.randint(6000, 7000)  # Puerto aleatorio para el proxy
+        proxy_token = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+        
+        # Iniciar websockify en un proceso separado
+        websockify_cmd = f"websockify {console_port} {vnc_config['host']}:{vnc_config['port']} --web=/usr/share/novnc/ -t {proxy_token}"
+        subprocess.Popen(websockify_cmd, shell=True)
+        
+        # Esperar un segundo para que websockify se inicie
+        time.sleep(1)
+        
+        context = {
+            'vm_name': vm_info['name'],
+            'vmid': vmid,
+            'node_name': node_name,
+            'vnc_port': console_port,
+            'vnc_token': proxy_token,
+            'vnc_password': vnc_config.get('password', ''),
+        }
+        
+        return render(request, 'vm_console.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error al conectar con la consola VNC para VM {vmid}: {str(e)}")
+        messages.error(request, f"Error al conectar con la consola: {str(e)}")
+        return redirect('vm_detail_with_type', node_name=node_name, vmid=vmid, vm_type=vm_type)

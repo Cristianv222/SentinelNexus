@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Consola VM: {{ vm_name }} - SentinelNexus{% endblock %}
+
+{% block extra_css %}
+<style>
+    body, html {
+        height: 100%;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+        background-color: #1a1a1a;
+    }
+    
+    .console-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+    }
+    
+    .console-header {
+        background-color: #252525;
+        color: #e0e0e0;
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #444;
+    }
+    
+    .console-title {
+        display: flex;
+        align-items: center;
+    }
+    
+    .console-body {
+        flex: 1;
+        position: relative;
+    }
+    
+    #vnc-canvas {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+    
+    .console-footer {
+        background-color: #252525;
+        color: #e0e0e0;
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px solid #444;
+    }
+    
+    .btn-control {
+        margin-right: 5px;
+    }
+    
+    .connection-status {
+        display: flex;
+        align-items: center;
+    }
+    
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .status-connected {
+        background-color: #4CAF50;
+    }
+    
+    .status-disconnected {
+        background-color: #F44336;
+    }
+    
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.8);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 87, 34, 0.3);
+        border-top: 4px solid #FF5722;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="console-container">
+    <div class="console-header">
+        <div class="console-title">
+            <i class="fas fa-desktop me-2 icon-cpu"></i>
+            <h3 class="mb-0">{{ vm_name }} <small class="text-muted">#{{ vmid }}</small></h3>
+        </div>
+        <div>
+            <a href="{% url 'vm_detail_with_type' node_name=node_name vmid=vmid vm_type='qemu' %}" class="btn btn-oscuro btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>Volver
+            </a>
+            <button id="fullscreen-btn" class="btn btn-tomate btn-sm">
+                <i class="fas fa-expand me-1"></i>Pantalla completa
+            </button>
+        </div>
+    </div>
+    
+    <div class="console-body">
+        <!-- noVNC Canvas -->
+        <div id="vnc-canvas"></div>
+        
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <h4 class="text-white">Conectando a la consola...</h4>
+            <p class="text-white">Esto puede tardar unos segundos</p>
+        </div>
+    </div>
+    
+    <div class="console-footer">
+        <div class="controls">
+            <button id="ctrl-alt-del" class="btn btn-sm btn-danger btn-control">
+                <i class="fas fa-power-off me-1"></i>Ctrl+Alt+Del
+            </button>
+            <button id="clipboard-btn" class="btn btn-sm btn-amarillo btn-control">
+                <i class="fas fa-clipboard me-1"></i>Portapapeles
+            </button>
+            <button id="keyboard-btn" class="btn btn-sm btn-oscuro btn-control">
+                <i class="fas fa-keyboard me-1"></i>Teclado
+            </button>
+        </div>
+        <div class="connection-status">
+            <span id="status-indicator" class="status-indicator status-disconnected"></span>
+            <span id="status-text">Desconectado</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Incluir noVNC -->
+<script src="/static/novnc/core/novnc.min.js"></script>
+<script>
+    // Variables para la conexión VNC
+    const vncHost = window.location.hostname; // Variable de Django sin comillas adicionales
+    const vncToken = "{{ vnc_token }}";
+    const vncPassword = "{{ vnc_password }}";
+    
+    // Inicializar noVNC - cambiado a ws:// para desarrollo local
+    const rfb = new novnc.RFB(
+        document.getElementById('vnc-canvas'), 
+        `ws://${vncHost}:${vncPort}/websockify?token=${vncToken}`
+    );
+    
+    // Configurar manejo de eventos
+    rfb.addEventListener("connect", () => {
+        console.log("Conectado a la consola VNC");
+        document.getElementById('status-indicator').className = 'status-indicator status-connected';
+        document.getElementById('status-text').textContent = 'Conectado';
+        document.getElementById('loading-overlay').style.display = 'none';
+        
+        // Establecer contraseña si es necesario
+        if (vncPassword) {
+            rfb.sendCredentials({ password: vncPassword });
+        }
+    });
+    
+    rfb.addEventListener("disconnect", (e) => {
+        console.log("Desconectado de la consola VNC", e);
+        document.getElementById('status-indicator').className = 'status-indicator status-disconnected';
+        document.getElementById('status-text').textContent = 'Desconectado';
+        document.getElementById('loading-overlay').style.display = 'flex';
+        document.getElementById('loading-overlay').querySelector('h4').textContent = 'Desconectado de la consola';
+    });
+    
+    rfb.addEventListener("securityfailure", () => {
+        console.error("Error de seguridad VNC");
+        document.getElementById('status-text').textContent = 'Error de seguridad';
+    });
+    
+    // Control de pantalla completa
+    document.getElementById('fullscreen-btn').addEventListener('click', () => {
+        const canvas = document.getElementById('vnc-canvas');
+        if (canvas.requestFullscreen) {
+            canvas.requestFullscreen();
+        } else if (canvas.mozRequestFullScreen) {
+            canvas.mozRequestFullScreen();
+        } else if (canvas.webkitRequestFullscreen) {
+            canvas.webkitRequestFullscreen();
+        } else if (canvas.msRequestFullscreen) {
+            canvas.msRequestFullscreen();
+        }
+    });
+    
+    // Enviar Ctrl+Alt+Del
+    document.getElementById('ctrl-alt-del').addEventListener('click', () => {
+        if (rfb._rfbConnectionState === 'connected') {
+            rfb.sendCtrlAltDel();
+        }
+    });
+    
+    // Configurar clipboard
+    document.getElementById('clipboard-btn').addEventListener('click', () => {
+        const clipboardText = prompt('Ingrese texto para enviar al portapapeles de la VM:');
+        if (clipboardText && rfb._rfbConnectionState === 'connected') {
+            rfb.clipboardPasteFrom(clipboardText);
+        }
+    });
+    
+    // Agregar funcionalidad al botón de teclado
+    document.getElementById('keyboard-btn').addEventListener('click', () => {
+        alert('Función de teclado virtual en desarrollo');
+    });
+    
+    // Manejo de errores de conexión
+    window.addEventListener('error', function(e) {
+        console.error('Error de JavaScript:', e.message);
+        document.getElementById('status-text').textContent = 'Error: ' + e.message;
+    });
+</script>
+{% endblock %}

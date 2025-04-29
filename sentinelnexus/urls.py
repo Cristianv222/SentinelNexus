@@ -39,4 +39,6 @@ urlpatterns = [
     path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
     path('api/metrics/', views.api_metrics, name='api_metrics'),
     path('sync-proxmox/', views.sync_proxmox, name='sync_proxmox'),
+    path('vm/<str:node_name>/<int:vmid>/<str:vm_type>/console/', views.vm_console, name='vm_console'),
+
 ]
