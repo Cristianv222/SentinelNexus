@@ -291,3 +291,50 @@ class EstadisticaRecursos(models.Model):
 
     def __str__(self):
         return f"Estadística {self.estadistica_id} - {self.tipo_recurso} ({self.tipo_entidad})"
+    
+    # Modelo existente (ajusta según tus necesidades)
+class Server(models.Model):
+    name = models.CharField(max_length=100)
+    host = models.CharField(max_length=255)
+    node = models.CharField(max_length=100)
+    username = models.CharField(max_length=100)
+    password = models.CharField(max_length=100)
+    active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return self.name
+
+# Modelo para métricas de servidores Proxmox
+class ServerMetric(models.Model):
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name='metrics')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    cpu_usage = models.FloatField()
+    memory_usage = models.FloatField()
+    disk_usage = models.FloatField()
+    uptime = models.BigIntegerField()
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(fields=['server', 'timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.server.name} - {self.timestamp}"
+
+# Modelo para métricas locales
+class LocalMetric(models.Model):
+    timestamp = models.DateTimeField(auto_now_add=True)
+    cpu_usage = models.FloatField()
+    memory_usage = models.FloatField()
+    disk_usage = models.FloatField()
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"Local Metrics - {self.timestamp}"

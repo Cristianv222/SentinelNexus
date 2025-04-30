@@ -13,6 +13,7 @@ from pathlib import Path
 import os
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,6 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_celery_results',  # Para almacenar resultados de tareas
+    'django_celery_beat',     # Para programación de tareas periódicas
 ]
 
 MIDDLEWARE = [
@@ -89,37 +92,6 @@ DATABASES = {
         },
     }
 }
-
-# Configuración de Proxmox usando variables de entorno
-PROXMOX = {
-    'host': os.environ.get('PROXMOX_HOST', ''),
-    'user': os.environ.get('PROXMOX_USER', ''),
-    'password': os.environ.get('PROXMOX_PASSWORD', ''),
-    'verify_ssl': os.environ.get('PROXMOX_VERIFY_SSL', 'false').lower() == 'true',
-}
-
-# Configuración de Grafana (opcional, se pueden usar valores predeterminados)
-# Configuración de Grafana 
-GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://10.100.100.201:3000')
-GRAFANA_DASHBOARD_ID = os.environ.get('GRAFANA_DASHBOARD_ID', 'proxmox-monitoring')
-
-# Validar la configuración de Grafana
-if not GRAFANA_URL:
-    import warnings
-    warnings.warn(
-        "La URL de Grafana no está configurada. "
-        "Algunas funcionalidades relacionadas con visualización de métricas no estarán disponibles."
-    )
-    
-# Verificación de que la configuración de Proxmox esté completa
-# Comentado para desarrollo, usar advertencia en su lugar
-if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
-    import warnings
-    warnings.warn(
-        "Las configuraciones de Proxmox no están completas. "
-        "Algunas funcionalidades relacionadas con Proxmox no estarán disponibles. "
-        "Asegúrate de configurar PROXMOX_HOST, PROXMOX_USER y PROXMOX_PASSWORD."
-    )
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -172,3 +144,72 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# Configuración de Celery apuntando a VM Rocky Linux
+REDIS_HOST = os.environ.get('REDIS_HOST', '10.0.0.100')  # Reemplaza con la IP real de tu VM
+REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'django-db')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Mexico_City'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutos como límite para tareas
+CELERY_RESULT_EXTENDED = True  # Almacenar más detalles en los resultados
+
+# Configuración de tareas periódicas con Celery Beat
+CELERY_BEAT_SCHEDULE = {
+    'monitor-proxmox-every-5-minutes': {
+        'task': 'submodulos.tasks.monitor_proxmox_servers',
+        'schedule': crontab(minute='*/5'),  # Cada 5 minutos
+    },
+    'collect-local-metrics-every-minute': {
+        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
+        'schedule': crontab(minute='*'),  # Cada minuto
+    },
+}
+
+# Configuración de Redis para cache
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': os.environ.get('REDIS_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+# Configuración de sesiones con Redis
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
+# Configuración de Proxmox usando variables de entorno
+PROXMOX = {
+    'host': os.environ.get('PROXMOX_HOST', ''),
+    'user': os.environ.get('PROXMOX_USER', ''),
+    'password': os.environ.get('PROXMOX_PASSWORD', ''),
+    'verify_ssl': os.environ.get('PROXMOX_VERIFY_SSL', 'false').lower() == 'true',
+}
+
+# Configuración de Grafana
+GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://10.100.100.201:3000')
+GRAFANA_DASHBOARD_ID = os.environ.get('GRAFANA_DASHBOARD_ID', 'proxmox-monitoring')
+
+# Validar la configuración de Grafana
+if not GRAFANA_URL:
+    import warnings
+    warnings.warn(
+        "La URL de Grafana no está configurada. "
+        "Algunas funcionalidades relacionadas con visualización de métricas no estarán disponibles."
+    )
+    
+# Verificación de que la configuración de Proxmox esté completa
+if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
+    import warnings
+    warnings.warn(
+        "Las configuraciones de Proxmox no están completas. "
+        "Algunas funcionalidades relacionadas con Proxmox no estarán disponibles. "
+        "Asegúrate de configurar PROXMOX_HOST, PROXMOX_USER y PROXMOX_PASSWORD."
+    )
