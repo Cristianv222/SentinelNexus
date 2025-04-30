@@ -23,16 +23,37 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 
-# En sentinelnexus/views.py
+
+@login_required
+def grafana_dashboard(request):
+    """
+    Vista que integra un dashboard de Grafana vía iframe
+    """
+    # Asegurar que la URL no tenga barra al final para evitar problemas
+    grafana_url = settings.GRAFANA_URL.rstrip('/')
+    dashboard_id = settings.GRAFANA_DASHBOARD_ID
+    
+    # Log de depuración
+    print(f"Preparando dashboard de Grafana, URL: {grafana_url}, ID: {dashboard_id}")
+    
+    return render(request, 'grafana.html', {
+        'dashboard_url': grafana_url,
+        'dashboard_id': dashboard_id
+    })
+
 def test_grafana_connection(request):
     """Vista para diagnosticar problemas de conexión con Grafana"""
     
-    grafana_url = 'http://10.100.100.201:3000'
+    grafana_url = settings.GRAFANA_URL
     results = []
     
     # Prueba 1: Conexión HTTP básica
     try:
         import requests
+        from requests.packages.urllib3.exceptions import InsecureRequestWarning
+        
+        # Suprimir advertencias de SSL inseguro para pruebas
+        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         
         response = requests.get(grafana_url, timeout=5, verify=False)
         results.append({
@@ -51,22 +72,28 @@ def test_grafana_connection(request):
     try:
         import socket
         
+        # Extraer host y puerto de la URL
+        from urllib.parse import urlparse
+        parsed_url = urlparse(grafana_url)
+        host = parsed_url.hostname
+        port = parsed_url.port or (443 if parsed_url.scheme == 'https' else 80)
+        
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(5)
-        result = s.connect_ex(('10.100.100.201', 3000))
+        result = s.connect_ex((host, port))
         s.close()
         
         if result == 0:
             results.append({
                 'name': 'Socket TCP',
                 'success': True,
-                'details': "Puerto 3000 abierto y accesible"
+                'details': f"Puerto {port} abierto y accesible en {host}"
             })
         else:
             results.append({
                 'name': 'Socket TCP',
                 'success': False,
-                'details': f"Puerto 3000 no accesible (Código: {result})"
+                'details': f"Puerto {port} no accesible en {host} (Código: {result})"
             })
     except Exception as e:
         results.append({
@@ -75,23 +102,72 @@ def test_grafana_connection(request):
             'details': f"Error: {type(e).__name__}: {str(e)}"
         })
     
+    # Prueba 3: Solicitud API de Grafana
+    try:
+        import requests
+        api_url = f"{grafana_url}/api/health"
+        response = requests.get(api_url, timeout=5, verify=False)
+        
+        if response.status_code == 200:
+            results.append({
+                'name': 'API de Grafana',
+                'success': True,
+                'details': f"API de salud responde correctamente: {response.json()}"
+            })
+        else:
+            results.append({
+                'name': 'API de Grafana',
+                'success': False,
+                'details': f"API respondió con código {response.status_code}: {response.text}"
+            })
+    except Exception as e:
+        results.append({
+            'name': 'API de Grafana',
+            'success': False,
+            'details': f"Error: {type(e).__name__}: {str(e)}"
+        })
+    
+    # Resumen de configuración
+    results.append({
+        'name': 'Configuración',
+        'success': True,
+        'details': f"""
+        GRAFANA_URL: {settings.GRAFANA_URL}
+        GRAFANA_DASHBOARD_ID: {settings.GRAFANA_DASHBOARD_ID}
+        """
+    })
+    
     # Construir respuesta HTML
     html = f"""
     <html>
     <head>
         <title>Test de Conexión a Grafana</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body {{ font-family: Arial, sans-serif; margin: 20px; }}
             .success {{ color: green; }}
             .error {{ color: red; }}
             pre {{ background: #f5f5f5; padding: 10px; border-radius: 5px; }}
+            .test-summary {{ margin-bottom: 30px; }}
         </style>
     </head>
     <body>
-        <h1>Diagnóstico de Conexión a Grafana</h1>
-        <p><strong>URL:</strong> {grafana_url}</p>
-        
-        <h2>Resultados:</h2>
+        <div class="container">
+            <h1 class="mb-4">Diagnóstico de Conexión a Grafana</h1>
+            <p><strong>URL:</strong> {grafana_url}</p>
+            
+            <h2>Resultados:</h2>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    Resumen
+                </div>
+                <div class="card-body">
+                    <p>Estado general: 
+                        {'<span class="badge bg-success">Correcto</span>' if all(r['success'] for r in results) else '<span class="badge bg-danger">Problemas detectados</span>'}
+                    </p>
+                </div>
+            </div>
     """
     
     for result in results:
@@ -99,35 +175,32 @@ def test_grafana_connection(request):
         status_icon = "✅" if result['success'] else "❌"
         
         html += f"""
-        <div class="result">
-            <h3 class="{status_class}">{status_icon} {result['name']}</h3>
-            <pre>{result['details']}</pre>
+        <div class="card mb-3 test-summary">
+            <div class="card-header {status_class}">
+                {status_icon} {result['name']}
+            </div>
+            <div class="card-body">
+                <pre>{result['details']}</pre>
+            </div>
         </div>
         """
     
     html += """
+        </div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     </body>
     </html>
     """
     
     return HttpResponse(html)
-
-@login_required
-def grafana_dashboard(request):
-    """
-    Vista que integra un dashboard de Grafana vía iframe
-    """
-    return render(request, 'grafana.html', {
-        'dashboard_url': settings.GRAFANA_URL,
-        'dashboard_id': settings.GRAFANA_DASHBOARD_ID
-    })
-
 @csrf_exempt
 def grafana_proxy(request, path=''):
     """
     Proxy para Grafana - solución robusta
     """
-    grafana_url = 'http://10.100.100.201:3000'
+    # Usar la URL desde la configuración en lugar de hardcoded
+    grafana_url = settings.GRAFANA_URL
     
     # Construir URL completa
     if path:

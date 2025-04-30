@@ -99,9 +99,18 @@ PROXMOX = {
 }
 
 # Configuración de Grafana (opcional, se pueden usar valores predeterminados)
+# Configuración de Grafana 
 GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://10.100.100.201:3000')
 GRAFANA_DASHBOARD_ID = os.environ.get('GRAFANA_DASHBOARD_ID', 'proxmox-monitoring')
 
+# Validar la configuración de Grafana
+if not GRAFANA_URL:
+    import warnings
+    warnings.warn(
+        "La URL de Grafana no está configurada. "
+        "Algunas funcionalidades relacionadas con visualización de métricas no estarán disponibles."
+    )
+    
 # Verificación de que la configuración de Proxmox esté completa
 # Comentado para desarrollo, usar advertencia en su lugar
 if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:

@@ -13,8 +13,8 @@
     
     <div class="card">
         <div class="card-body p-0">
-            <!-- Usar el proxy en lugar de la URL directa -->
-            <iframe src="/grafana-proxy/d/{{ dashboard_id }}/proxmox-monitoring?orgId=1&kiosk"
+            <!-- URL directa a Grafana -->
+            <iframe src="{{ dashboard_url }}/d/{{ dashboard_id }}/proxmox-monitoring?orgId=1&kiosk"
                     width="100%" height="800" frameborder="0"></iframe>
         </div>
     </div>
