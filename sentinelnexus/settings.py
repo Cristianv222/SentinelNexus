@@ -146,7 +146,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Configuración de Celery apuntando a VM Rocky Linux
-REDIS_HOST = os.environ.get('REDIS_HOST', '10.0.0.100')  # Reemplaza con la IP real de tu VM
+REDIS_HOST = os.environ.get('REDIS_HOST', '10.100.100.201')  # Reemplaza con la IP real de tu VM
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'django-db')
