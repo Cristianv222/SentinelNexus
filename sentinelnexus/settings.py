@@ -82,14 +82,11 @@ WSGI_APPLICATION = 'sentinelnexus.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'sentinel_nexus'),
-        'USER': os.environ.get('DB_USER', 'sentinelnexus'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', '12345678910'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-        'OPTIONS': {
-            'client_encoding': 'UTF8',
-        },
+        'NAME': 'sentinel_nexus',  # El nombre correcto de tu BD
+        'USER': 'sentinelnexus',   # Tu usuario PostgreSQL
+        'PASSWORD': 'root',  # Reemplaza con la contraseña real
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
