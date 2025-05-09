@@ -169,6 +169,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'submodulos.tasks.collect_local_metrics_hybrid',
         'schedule': crontab(minute='*'),  # Cada minuto
     },
+    'collect-hybrid-metrics-every-hour': {
+        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
+        'schedule': 3600.0, # Cada hora
+    }
 }
 
 # Configuración de Redis para cache
