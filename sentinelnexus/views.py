@@ -29,23 +29,14 @@ def grafana_dashboard(request):
     """
     Vista que integra un dashboard de Grafana vía iframe con autenticación por token
     """
-    # Asegurar que la URL no tenga barra al final para evitar problemas
     grafana_url = settings.GRAFANA_URL.rstrip('/')
     dashboard_id = settings.GRAFANA_DASHBOARD_ID
     api_key = settings.GRAFANA_API_KEY if hasattr(settings, 'GRAFANA_API_KEY') else ''
     
-    # Construir URL con autenticación por token
-    if api_key:
-        dashboard_url = f"{grafana_url}/d/{dashboard_id}/{dashboard_id}?orgId=1&kiosk&api-key={api_key}"
-    else:
-        dashboard_url = f"{grafana_url}/d/{dashboard_id}/{dashboard_id}?orgId=1&kiosk"
-    
-    # Log de depuración
-    print(f"Preparando dashboard de Grafana, URL base: {grafana_url}, ID: {dashboard_id}")
-    print(f"URL completa (sin mostrar token): {grafana_url}/d/{dashboard_id}/{dashboard_id}?orgId=1&kiosk...")
-    
     return render(request, 'grafana.html', {
-        'dashboard_url': dashboard_url
+        'dashboard_url': grafana_url,
+        'dashboard_id': dashboard_id,
+        'api_key': api_key
     })
 
 def test_grafana_connection(request):
