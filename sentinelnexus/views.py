@@ -27,35 +27,48 @@ from django.db import transaction
 @login_required
 def grafana_dashboard(request):
     """
-    Vista que integra un dashboard de Grafana vía iframe
+    Vista que integra un dashboard de Grafana vía iframe con autenticación por token
     """
     # Asegurar que la URL no tenga barra al final para evitar problemas
     grafana_url = settings.GRAFANA_URL.rstrip('/')
     dashboard_id = settings.GRAFANA_DASHBOARD_ID
+    api_key = settings.GRAFANA_API_KEY if hasattr(settings, 'GRAFANA_API_KEY') else ''
+    
+    # Construir URL con autenticación por token
+    if api_key:
+        dashboard_url = f"{grafana_url}/d/{dashboard_id}/{dashboard_id}?orgId=1&kiosk&api-key={api_key}"
+    else:
+        dashboard_url = f"{grafana_url}/d/{dashboard_id}/{dashboard_id}?orgId=1&kiosk"
     
     # Log de depuración
-    print(f"Preparando dashboard de Grafana, URL: {grafana_url}, ID: {dashboard_id}")
+    print(f"Preparando dashboard de Grafana, URL base: {grafana_url}, ID: {dashboard_id}")
+    print(f"URL completa (sin mostrar token): {grafana_url}/d/{dashboard_id}/{dashboard_id}?orgId=1&kiosk...")
     
     return render(request, 'grafana.html', {
-        'dashboard_url': grafana_url,
-        'dashboard_id': dashboard_id
+        'dashboard_url': dashboard_url
     })
 
 def test_grafana_connection(request):
     """Vista para diagnosticar problemas de conexión con Grafana"""
     
     grafana_url = settings.GRAFANA_URL
+    api_key = settings.GRAFANA_API_KEY if hasattr(settings, 'GRAFANA_API_KEY') else ''
     results = []
     
     # Prueba 1: Conexión HTTP básica
     try:
         import requests
-        from requests.packages.urllib3.exceptions import InsecureRequestWarning
+        from requests.packages.urllib3.exceptions import InsecureRequestWarning # type: ignore
         
         # Suprimir advertencias de SSL inseguro para pruebas
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         
-        response = requests.get(grafana_url, timeout=5, verify=False)
+        # Añadimos el token a los headers si existe
+        headers = {}
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+        
+        response = requests.get(grafana_url, headers=headers, timeout=5, verify=False)
         results.append({
             'name': 'Conexión HTTP',
             'success': True,
@@ -106,7 +119,13 @@ def test_grafana_connection(request):
     try:
         import requests
         api_url = f"{grafana_url}/api/health"
-        response = requests.get(api_url, timeout=5, verify=False)
+        
+        # Añadimos el token a los headers si existe
+        headers = {}
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+            
+        response = requests.get(api_url, headers=headers, timeout=5, verify=False)
         
         if response.status_code == 200:
             results.append({
@@ -127,14 +146,49 @@ def test_grafana_connection(request):
             'details': f"Error: {type(e).__name__}: {str(e)}"
         })
     
+    # Prueba 4: Acceso al dashboard específico
+    try:
+        import requests
+        dashboard_id = settings.GRAFANA_DASHBOARD_ID
+        dashboard_url = f"{grafana_url}/d/{dashboard_id}/{dashboard_id}?orgId=1"
+        
+        # Añadimos el token a los headers si existe
+        headers = {}
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+            
+        response = requests.get(dashboard_url, headers=headers, timeout=5, verify=False)
+        
+        if response.status_code == 200:
+            results.append({
+                'name': 'Acceso al Dashboard',
+                'success': True,
+                'details': f"Dashboard accesible: {dashboard_id}"
+            })
+        else:
+            results.append({
+                'name': 'Acceso al Dashboard',
+                'success': False,
+                'details': f"Error al acceder al dashboard: {response.status_code}"
+            })
+    except Exception as e:
+        results.append({
+            'name': 'Acceso al Dashboard',
+            'success': False,
+            'details': f"Error: {type(e).__name__}: {str(e)}"
+        })
+    
     # Resumen de configuración
+    config_details = f"""
+    GRAFANA_URL: {settings.GRAFANA_URL}
+    GRAFANA_DASHBOARD_ID: {settings.GRAFANA_DASHBOARD_ID}
+    GRAFANA_API_KEY: {'Configurado' if api_key else 'No configurado'}
+    """
+    
     results.append({
         'name': 'Configuración',
         'success': True,
-        'details': f"""
-        GRAFANA_URL: {settings.GRAFANA_URL}
-        GRAFANA_DASHBOARD_ID: {settings.GRAFANA_DASHBOARD_ID}
-        """
+        'details': config_details
     })
     
     # Construir respuesta HTML
@@ -194,13 +248,15 @@ def test_grafana_connection(request):
     """
     
     return HttpResponse(html)
+
 @csrf_exempt
 def grafana_proxy(request, path=''):
     """
-    Proxy para Grafana - solución robusta
+    Proxy para Grafana - solución robusta con soporte para token API
     """
     # Usar la URL desde la configuración en lugar de hardcoded
-    grafana_url = settings.GRAFANA_URL
+    grafana_url = settings.GRAFANA_URL.rstrip('/')
+    api_key = settings.GRAFANA_API_KEY if hasattr(settings, 'GRAFANA_API_KEY') else ''
     
     # Construir URL completa
     if path:
@@ -221,6 +277,10 @@ def grafana_proxy(request, path=''):
         for header, value in request.headers.items():
             if header.lower() not in ['host', 'content-length']:
                 headers[header] = value
+        
+        # Añadir token de API si está configurado
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
         
         # Hacer la solicitud a Grafana
         response = requests.request(

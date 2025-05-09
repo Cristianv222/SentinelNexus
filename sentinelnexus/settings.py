@@ -197,6 +197,7 @@ PROXMOX = {
 # Configuración de Grafana
 GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://10.100.100.201:3000')
 GRAFANA_DASHBOARD_ID = os.environ.get('GRAFANA_DASHBOARD_ID', 'proxmox-monitoring')
+GRAFANA_API_KEY = os.environ.get('GRAFANA_API_KEY', '')  # Añadido para el token
 
 # Validar la configuración de Grafana
 if not GRAFANA_URL:
@@ -204,6 +205,13 @@ if not GRAFANA_URL:
     warnings.warn(
         "La URL de Grafana no está configurada. "
         "Algunas funcionalidades relacionadas con visualización de métricas no estarán disponibles."
+    )
+
+if not GRAFANA_API_KEY:
+    import warnings
+    warnings.warn(
+        "El API Key de Grafana no está configurado. "
+        "Es posible que algunas visualizaciones embebidas no funcionen correctamente."
     )
     
 # Verificación de que la configuración de Proxmox esté completa

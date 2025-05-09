@@ -13,8 +13,8 @@
     
     <div class="card">
         <div class="card-body p-0">
-            <!-- URL directa y completa a Grafana -->
-            <iframe src="http://10.100.100.201:3000/d/proxmox-monitoring/proxmox-monitoring?orgId=1&kiosk"
+            <!-- La URL se construirá en la vista -->
+            <iframe src="{{ dashboard_url }}"
                     width="100%" height="800" frameborder="0"></iframe>
         </div>
     </div>
