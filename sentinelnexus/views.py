@@ -54,6 +54,10 @@ def grafana_proxy(request, path=''):
         headers['X-Forwarded-Proto'] = request.scheme
         headers['Origin'] = f"{request.scheme}://{proxy_host}"
         
+        # Headers de autenticación para SSO si el usuario está autenticado en Django
+        if request.user.is_authenticated:
+            headers['X-WEBAUTH-USER'] = request.user.username
+        
         # Crear una sesión para mantener cookies
         session = requests.Session()
         
@@ -66,11 +70,47 @@ def grafana_proxy(request, path=''):
             headers=headers,
             cookies=request.COOKIES,
             timeout=15,
-            verify=False  # Solo para desarrollo, en producción debería ser True
+            verify=False,  # Solo para desarrollo
+            allow_redirects=False  # Importante: no seguir redirecciones automáticamente
         )
         
         content_type = response.headers.get('Content-Type', '')
         content = response.content
+        
+        # Manejar redirecciones
+        if response.status_code in [301, 302, 303, 307, 308]:
+            location = response.headers.get('Location', '')
+            # Si la redirección es a la raíz o alguna ruta absoluta de Grafana
+            if location.startswith(grafana_url) or location.startswith('/'):
+                if location.startswith(grafana_url):
+                    # Reemplazar la URL base de Grafana con nuestra ruta de proxy
+                    location = location.replace(grafana_url, f"{request.scheme}://{proxy_host}/grafana-proxy")
+                elif location.startswith('/'):
+                    # Si es una ruta absoluta, añadir nuestro prefijo de proxy
+                    location = f"{request.scheme}://{proxy_host}/grafana-proxy{location}"
+                
+                # Crear la respuesta de redirección
+                django_response = HttpResponse(status=response.status_code)
+                django_response['Location'] = location
+            else:
+                # Redirección externa, mantener como está
+                django_response = HttpResponse(status=response.status_code)
+                django_response['Location'] = location
+                
+            # Aún necesitamos transferir cookies para redirecciones
+            for cookie in response.cookies:
+                cookie_obj = response.cookies[cookie]
+                django_response.set_cookie(
+                    key=cookie,
+                    value=cookie_obj.value,
+                    expires=cookie_obj.expires,
+                    path="/grafana-proxy" if cookie_obj.path == "/" else f"/grafana-proxy{cookie_obj.path}",
+                    domain=None,  # Usar el dominio por defecto del host
+                    secure=cookie_obj.secure,
+                    httponly=True,
+                    samesite='None'
+                )
+            return django_response
         
         # Procesamiento para reescribir URLs en el contenido
         if content_type and ('text/html' in content_type or 
@@ -82,8 +122,15 @@ def grafana_proxy(request, path=''):
                 
                 # Base URL del proxy
                 proxy_base = f"{request.scheme}://{proxy_host}/grafana-proxy"
+                
+                # URLs con comillas dobles
+                content_text = content_text.replace('href="/', 'href="/grafana-proxy/')
+                content_text = content_text.replace('src="/', 'src="/grafana-proxy/')
+                
+                # URLs con comillas simples
                 content_text = content_text.replace("href='/", "href='/grafana-proxy/")
                 content_text = content_text.replace("src='/", "src='/grafana-proxy/")
+                
                 # Reemplazar rutas en JavaScript
                 content_text = content_text.replace('"/api/', '"/grafana-proxy/api/')
                 content_text = content_text.replace('"/public/', '"/grafana-proxy/public/')
@@ -93,9 +140,12 @@ def grafana_proxy(request, path=''):
                 content_text = content_text.replace('"/img/', '"/grafana-proxy/img/')
                 content_text = content_text.replace('"/js/', '"/grafana-proxy/js/')
                 content_text = content_text.replace('"/build/', '"/grafana-proxy/build/')
+                content_text = content_text.replace('"/logout', '"/grafana-proxy/logout')
+                content_text = content_text.replace('"/dashboard', '"/grafana-proxy/dashboard')
                 
                 # Reemplazar JSON URLs (para APIs y configuración)
-                content_text = content_text.replace('"appSubUrl":"', f'"appSubUrl":"/grafana-proxy')
+                content_text = content_text.replace('"appSubUrl":"', '"appSubUrl":"/grafana-proxy')
+                content_text = content_text.replace('"appSubUrl":"/"', '"appSubUrl":"/grafana-proxy/"')
                 
                 # Reemplazar referencias a la URL base completa
                 content_text = content_text.replace(grafana_url, proxy_base)
@@ -113,20 +163,26 @@ def grafana_proxy(request, path=''):
         )
         
         # Transferir todas las cookies y encabezados
-        excluded_headers = ['content-length', 'transfer-encoding', 'connection', 'content-encoding']
+        excluded_headers = ['content-length', 'transfer-encoding', 'connection', 'content-encoding', 'set-cookie']
         for header, value in response.headers.items():
             if header.lower() not in excluded_headers:
                 django_response[header] = value
         
-        # Transferir todas las cookies de la respuesta
+        # Transferir todas las cookies de la respuesta con configuración mejorada
         for cookie in response.cookies:
+            cookie_obj = response.cookies[cookie]
+            # Modificar las cookies para que funcionen con el proxy
+            cookie_path = "/grafana-proxy" if cookie_obj.path == "/" else f"/grafana-proxy{cookie_obj.path}"
+            
             django_response.set_cookie(
                 key=cookie,
-                value=response.cookies[cookie].value,
-                expires=response.cookies[cookie].expires,
-                path=response.cookies[cookie].path,
-                domain=response.cookies[cookie].domain,
-                secure=response.cookies[cookie].secure
+                value=cookie_obj.value,
+                expires=cookie_obj.expires,
+                path=cookie_path,
+                domain=None,  # Usar el dominio por defecto del host
+                secure=cookie_obj.secure,
+                httponly=True,
+                samesite='None'  # Permitir cookies cross-site
             )
         
         return django_response

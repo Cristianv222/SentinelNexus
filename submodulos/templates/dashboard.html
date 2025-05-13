@@ -936,7 +936,7 @@
             // Guardar referencia
             vmCharts[vmId] = chart;
         } catch (error) {
-            console.error(`Error al inicializar el gráfico para VM ${vmId}:`, error);
+            console.error(Error al inicializar el gráfico para VM ${vmId}:, error);
         }
     });
     
@@ -960,7 +960,7 @@
                     if (data.success) {
                         // Actualizar estadísticas de VMs
                         data.data.vms.forEach(vm => {
-                            const vmCard = document.querySelector(`.vm-card[data-vmid="${vm.vmid}"]`);
+                            const vmCard = document.querySelector(.vm-card[data-vmid="${vm.vmid}"]);
                             if (!vmCard) return;
                             
                             // Solo actualizar VMs en ejecución
@@ -977,21 +977,21 @@
                                 const memDetail = vmCard.querySelector('.mem-stat .mem-detail');
                                 if (memValue) memValue.textContent = vm.mem.toFixed(1) + '%';
                                 if (memBar) memBar.style.width = vm.mem.toFixed(1) + '%';
-                                if (memDetail) memDetail.textContent = `${vm.mem_used}/${vm.mem_total}MB`;
+                                if (memDetail) memDetail.textContent = ${vm.mem_used}/${vm.mem_total}MB;
                                 
                                 // Actualizar valores de disco
                                 const diskRead = vmCard.querySelector('.disk-stats .disk-read');
                                 const diskWrite = vmCard.querySelector('.disk-stats .disk-write');
                                 const diskUsage = vmCard.querySelector('.disk-stats .disk-usage');
-                                if (diskRead) diskRead.textContent = `R: ${vm.disk_read.toFixed(1)}MB/s`;
-                                if (diskWrite) diskWrite.textContent = `W: ${vm.disk_write.toFixed(1)}MB/s`;
-                                if (diskUsage) diskUsage.textContent = `${vm.disk_used}/${vm.disk_total}GB`;
+                                if (diskRead) diskRead.textContent = R: ${vm.disk_read.toFixed(1)}MB/s;
+                                if (diskWrite) diskWrite.textContent = W: ${vm.disk_write.toFixed(1)}MB/s;
+                                if (diskUsage) diskUsage.textContent = ${vm.disk_used}/${vm.disk_total}GB;
                                 
                                 // Actualizar valores de red
                                 const netIn = vmCard.querySelector('.net-stats .net-in');
                                 const netOut = vmCard.querySelector('.net-stats .net-out');
-                                if (netIn) netIn.textContent = `↓ ${vm.net_in.toFixed(1)}Mbps`;
-                                if (netOut) netOut.textContent = `↑ ${vm.net_out.toFixed(1)}Mbps`;
+                                if (netIn) netIn.textContent = ↓ ${vm.net_in.toFixed(1)}Mbps;
+                                if (netOut) netOut.textContent = ↑ ${vm.net_out.toFixed(1)}Mbps;
                                 
                                 // Actualizar gráficos si existen
                                 if (vmCharts[vm.vmid]) {
@@ -1028,7 +1028,7 @@
     
     // Función para actualizar un gráfico de VM específico
     function updateVmChart(vm) {
-        fetch(`/api/vms/${vm.node}/${vm.vmid}/metrics/`)
+        fetch(/api/vms/${vm.node}/${vm.vmid}/metrics/)
             .then(response => response.json())
             .then(vmData => {
                 if (vmData.success && vmCharts[vm.vmid]) {
@@ -1069,7 +1069,7 @@
                 }
             })
             .catch(error => {
-                console.error(`Error al obtener métricas detalladas para VM ${vm.vmid}:`, error);
+                console.error(Error al obtener métricas detalladas para VM ${vm.vmid}:, error);
             });
     }
     
@@ -1113,7 +1113,7 @@
             
             // Pedir confirmación solo para acciones destructivas
             if (action === 'stop' || action === 'restart') {
-                if (!confirm(`¿Está seguro que desea ${action === 'stop' ? 'detener' : 'reiniciar'} esta máquina virtual?`)) {
+                if (!confirm(¿Está seguro que desea ${action === 'stop' ? 'detener' : 'reiniciar'} esta máquina virtual?)) {
                     return;
                 }
             }
@@ -1134,13 +1134,13 @@
             .then(data => {
                 if (data.success) {
                     // Mostrar mensaje de éxito y recargar después de un tiempo
-                    alert(`Acción '${action}' iniciada correctamente`);
+                    alert(Acción '${action}' iniciada correctamente);
                     setTimeout(() => {
                         location.reload();
                     }, 3000);
                 } else {
                     // Mostrar error
-                    alert(`Error: ${data.message}`);
+                    alert(Error: ${data.message});
                     this.innerHTML = originalContent;
                     this.disabled = false;
                 }
