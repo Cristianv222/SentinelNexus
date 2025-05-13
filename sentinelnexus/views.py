@@ -28,60 +28,67 @@ from django.db import transaction
 @csrf_exempt
 def grafana_proxy(request, path=''):
     """
-    Proxy mejorado para Grafana que usa el Service Account Token
+    Proxy mejorado para Grafana
     """
-    grafana_url = settings.GRAFANA_URL.rstrip('/')
+    grafana_url = 'http://10.100.100.201:3000'
     url = f"{grafana_url}/{path}" if path else grafana_url
     
-    print(f"Proxying request to: {url}")  # Para depuración
-    
     try:
-        # Preparar headers con el token
-        headers = {k: v for k, v in request.headers.items() 
-                  if k.lower() not in ['host', 'content-length']}
+        # Preservar todos los parámetros y encabezados originales
+        headers = {}
+        for header, value in request.headers.items():
+            if header.lower() not in ['host', 'content-length']:
+                headers[header] = value
+                
+        # Añadir token si existe
+        api_key = getattr(settings, 'GRAFANA_API_KEY', '')
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+            
+        # Crear una sesión para mantener cookies
+        session = requests.Session()
         
-        # Añadir el token
-        headers['Authorization'] = f'Bearer {settings.GRAFANA_API_KEY}'
-        
-        # Método HTTP y parámetros
-        method = request.method
-        params = request.GET.dict() if method == 'GET' else None
-        data = request.body if method in ['POST', 'PUT', 'PATCH'] else None
-        
-        # Usar requests para realizar la petición
-        response = requests.request(
-            method=method,
+        # Realizar la solicitud con el método original
+        response = session.request(
+            method=request.method,
             url=url,
-            params=params,
-            data=data,
+            params=request.GET.dict(),
+            data=request.body,
             headers=headers,
-            timeout=10,
+            timeout=15,
+            stream=True,  # Importante para contenido grande
             verify=False  # Solo para desarrollo
         )
         
-        # Crear respuesta para Django
+        # Crear respuesta Django
         django_response = HttpResponse(
             content=response.content,
             status=response.status_code,
             content_type=response.headers.get('Content-Type', 'text/html')
         )
         
-        # Transferir todas las cookies y headers relevantes
+        # Transferir todas las cookies y encabezados
         for header, value in response.headers.items():
-            if header.lower() == 'set-cookie':
-                django_response[header] = value
-            elif header.lower() not in ['content-length', 'transfer-encoding', 'connection']:
+            if header.lower() not in ['content-length', 'transfer-encoding', 'connection']:
                 django_response[header] = value
         
         return django_response
-    
+        
     except Exception as e:
         import traceback
-        return HttpResponse(
-            f"<div class='alert alert-danger'>Error al conectar con Grafana: {str(e)}</div><pre>{traceback.format_exc()}</pre>",
-            content_type='text/html',
-            status=500
-        )
+        error_msg = f"""
+        <div style="padding: 20px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px;">
+            <h3>Error al conectar con Grafana</h3>
+            <p>{str(e)}</p>
+            <hr>
+            <p>Prueba acceder directamente a <a href="http://10.100.100.201:3000" target="_blank">Grafana</a></p>
+            <details>
+                <summary>Detalles técnicos</summary>
+                <pre style="background-color: #f8f9fa; padding: 10px; overflow: auto;">{traceback.format_exc()}</pre>
+            </details>
+        </div>
+        """
+        return HttpResponse(error_msg, content_type='text/html', status=500)
     
 @login_required
 def grafana_dashboard(request):
