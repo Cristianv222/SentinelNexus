@@ -16,16 +16,6 @@ urlpatterns = [
     path('accounts/logout/', LogoutView.as_view(template_name='registration/logged_out.html'), name='logout'),
     path('accounts/', include('django.contrib.auth.urls')),
     
-    # Rutas de prueba y diagnóstico
-    path('test-grafana/', views.test_grafana_connection, name='test_grafana'),
-    
-    # Proxy Grafana (mantener estas rutas juntas)
-    path('grafana-proxy/', views.grafana_proxy, name='grafana_proxy_base'),
-    path('grafana-proxy/<path:path>', views.grafana_proxy, name='grafana_proxy'),
-    
-    # Dashboard de Grafana
-    path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
-    
     # Dashboard de métricas
     path('metrics/', views.metrics_dashboard, name='metrics_dashboard'),
     
@@ -55,4 +45,7 @@ urlpatterns = [
     path('api/vms/<str:node_name>/<int:vmid>/metrics/', views.api_vm_metrics, name='api_vm_metrics'),
     path('api/dashboard/metrics/', views.api_dashboard_metrics, name='api_dashboard_metrics'),
     path('api/metrics/', views.api_metrics, name='api_metrics'),
+    # Dashboard de Grafana (simplificado)
+path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
+
 ]
