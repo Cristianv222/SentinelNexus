@@ -226,5 +226,7 @@ if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
     )
 # Configuración de Grafana - importante usar la IP del servidor, no localhost
 # Configuración de Grafana
-GRAFANA_URL = 'http://10.100.100.201:3000'  # Cambia a la URL correcta
-GRAFANA_API_KEY = ''  # Deja en blanco si no tienes un API key
+# Configuración de Grafana
+GRAFANA_URL = 'http://10.100.100.201:3000'
+GRAFANA_DASHBOARD_ID = 'proxmox-monitoring'  # O el ID de tu dashboard
+GRAFANA_API_KEY = 'glsa_VaGvwKL2W5DDKednEE1qDV826AXC0aUC_5ce865c9'

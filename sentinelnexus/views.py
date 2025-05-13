@@ -23,43 +23,75 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 
+
+
+@csrf_exempt
 def grafana_proxy(request, path=''):
     """
-    Proxy para Grafana que evita problemas de CORS
+    Proxy mejorado para Grafana que usa el Service Account Token
     """
     grafana_url = settings.GRAFANA_URL.rstrip('/')
     url = f"{grafana_url}/{path}" if path else grafana_url
     
+    print(f"Proxying request to: {url}")  # Para depuración
+    
     try:
-        response = requests.get(
-            url, 
-            params=request.GET,
-            headers={'Authorization': f'Bearer {settings.GRAFANA_API_KEY}'},
-            timeout=5
+        # Preparar headers con el token
+        headers = {k: v for k, v in request.headers.items() 
+                  if k.lower() not in ['host', 'content-length']}
+        
+        # Añadir el token
+        headers['Authorization'] = f'Bearer {settings.GRAFANA_API_KEY}'
+        
+        # Método HTTP y parámetros
+        method = request.method
+        params = request.GET.dict() if method == 'GET' else None
+        data = request.body if method in ['POST', 'PUT', 'PATCH'] else None
+        
+        # Usar requests para realizar la petición
+        response = requests.request(
+            method=method,
+            url=url,
+            params=params,
+            data=data,
+            headers=headers,
+            timeout=10,
+            verify=False  # Solo para desarrollo
         )
-        return HttpResponse(
+        
+        # Crear respuesta para Django
+        django_response = HttpResponse(
             content=response.content,
             status=response.status_code,
-            content_type=response.headers.get('Content-Type')
+            content_type=response.headers.get('Content-Type', 'text/html')
         )
+        
+        # Transferir todas las cookies y headers relevantes
+        for header, value in response.headers.items():
+            if header.lower() == 'set-cookie':
+                django_response[header] = value
+            elif header.lower() not in ['content-length', 'transfer-encoding', 'connection']:
+                django_response[header] = value
+        
+        return django_response
+    
     except Exception as e:
-        return HttpResponse(f"Error al conectar con Grafana: {str(e)}", status=500)
+        import traceback
+        return HttpResponse(
+            f"<div class='alert alert-danger'>Error al conectar con Grafana: {str(e)}</div><pre>{traceback.format_exc()}</pre>",
+            content_type='text/html',
+            status=500
+        )
     
 @login_required
 def grafana_dashboard(request):
     """
-    Vista simplificada que muestra el dashboard de Grafana
+    Vista que muestra el dashboard de Grafana integrado
     """
-    if not settings.GRAFANA_ENABLED:
-        messages.warning(request, "La integración con Grafana está desactivada")
-        return redirect('dashboard')
-        
     context = {
         'grafana_url': settings.GRAFANA_URL,
-        'dashboard_id': settings.GRAFANA_DASHBOARD_ID,
-        'direct_access': settings.GRAFANA_DIRECT_ACCESS,
+        'dashboard_id': getattr(settings, 'GRAFANA_DASHBOARD_ID', 'proxmox-monitoring'),
     }
-    
     return render(request, 'grafana.html', context)
 
 logger = logging.getLogger(__name__)
