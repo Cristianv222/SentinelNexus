@@ -31,7 +31,12 @@ def grafana_proxy(request, path=''):
     Proxy mejorado para Grafana
     """
     grafana_url = 'http://10.100.100.201:3000'
+    
+    # Normalizar el path
+    path = path.lstrip('/') if path else ''
     url = f"{grafana_url}/{path}" if path else grafana_url
+    
+    print(f"Proxying to: {url}")  # Para debugging
     
     try:
         # Preservar todos los parámetros y encabezados originales
@@ -44,6 +49,9 @@ def grafana_proxy(request, path=''):
         api_key = getattr(settings, 'GRAFANA_API_KEY', '')
         if api_key:
             headers['Authorization'] = f'Bearer {api_key}'
+        
+        # Añadir header de origen para CORS
+        headers['Origin'] = request.build_absolute_uri('/')
             
         # Crear una sesión para mantener cookies
         session = requests.Session()

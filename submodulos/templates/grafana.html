@@ -16,9 +16,8 @@
             <h5 class="card-title mb-0">Monitoreo en tiempo real</h5>
         </div>
         <div class="card-body p-0">
-            <!-- Usamos el proxy en lugar del acceso directo -->
-            <iframe src="{% url 'grafana_proxy_base' %}d/{{ dashboard_id }}?orgId=1&kiosk"
-                    width="100%" height="800" frameborder="0" id="grafana-iframe"></iframe>
+<iframe src="{% url 'grafana_proxy_base' %}d/{{ dashboard_id }}?orgId=1&kiosk"
+        width="100%" height="800" frameborder="0" id="grafana-iframe"></iframe>
         </div>
         <div class="card-footer">
             <div class="d-flex justify-content-between align-items-center">
