@@ -23,20 +23,18 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 
-
-
 @csrf_exempt
 def grafana_proxy(request, path=''):
     """
-    Proxy mejorado para Grafana
+    Proxy mejorado para Grafana que reescribe URLs y maneja correctamente los recursos
     """
-    grafana_url = 'http://10.100.100.201:3000'
+    grafana_url = getattr(settings, 'GRAFANA_URL', 'http://10.100.100.201:3000')
     
-    # Normalizar el path
+    # Normalizar el path para evitar problemas con barras
     path = path.lstrip('/') if path else ''
     url = f"{grafana_url}/{path}" if path else grafana_url
     
-    print(f"Proxying to: {url}")  # Para debugging
+    logger.debug(f"Proxying request to: {url}")
     
     try:
         # Preservar todos los parámetros y encabezados originales
@@ -50,49 +48,102 @@ def grafana_proxy(request, path=''):
         if api_key:
             headers['Authorization'] = f'Bearer {api_key}'
         
-        # Añadir header de origen para CORS
-        headers['Origin'] = request.build_absolute_uri('/')
-            
+        # Añadir headers de CORS y origin
+        proxy_host = request.get_host()
+        headers['X-Forwarded-Host'] = proxy_host
+        headers['X-Forwarded-Proto'] = request.scheme
+        headers['Origin'] = f"{request.scheme}://{proxy_host}"
+        
         # Crear una sesión para mantener cookies
         session = requests.Session()
         
         # Realizar la solicitud con el método original
-        response = session.request(
+        response = requests.request(
             method=request.method,
             url=url,
             params=request.GET.dict(),
             data=request.body,
             headers=headers,
+            cookies=request.COOKIES,
             timeout=15,
-            stream=True,  # Importante para contenido grande
-            verify=False  # Solo para desarrollo
+            verify=False  # Solo para desarrollo, en producción debería ser True
         )
+        
+        content_type = response.headers.get('Content-Type', '')
+        content = response.content
+        
+        # Procesamiento para reescribir URLs en el contenido
+        if content_type and ('text/html' in content_type or 
+                            'application/javascript' in content_type or 
+                            'text/css' in content_type or 
+                            'application/json' in content_type):
+            try:
+                content_text = content.decode('utf-8')
+                
+                # Base URL del proxy
+                proxy_base = f"{request.scheme}://{proxy_host}/grafana-proxy"
+                content_text = content_text.replace("href='/", "href='/grafana-proxy/")
+                content_text = content_text.replace("src='/", "src='/grafana-proxy/")
+                # Reemplazar rutas en JavaScript
+                content_text = content_text.replace('"/api/', '"/grafana-proxy/api/')
+                content_text = content_text.replace('"/public/', '"/grafana-proxy/public/')
+                content_text = content_text.replace('"/assets/', '"/grafana-proxy/assets/')
+                content_text = content_text.replace('"/login/', '"/grafana-proxy/login/')
+                content_text = content_text.replace('"/css/', '"/grafana-proxy/css/')
+                content_text = content_text.replace('"/img/', '"/grafana-proxy/img/')
+                content_text = content_text.replace('"/js/', '"/grafana-proxy/js/')
+                content_text = content_text.replace('"/build/', '"/grafana-proxy/build/')
+                
+                # Reemplazar JSON URLs (para APIs y configuración)
+                content_text = content_text.replace('"appSubUrl":"', f'"appSubUrl":"/grafana-proxy')
+                
+                # Reemplazar referencias a la URL base completa
+                content_text = content_text.replace(grafana_url, proxy_base)
+                
+                content = content_text.encode('utf-8')
+            except UnicodeDecodeError:
+                # Si no podemos decodificar, usamos el contenido original
+                logger.warning("No se pudo decodificar el contenido para reescribir URLs")
         
         # Crear respuesta Django
         django_response = HttpResponse(
-            content=response.content,
+            content=content,
             status=response.status_code,
-            content_type=response.headers.get('Content-Type', 'text/html')
+            content_type=content_type
         )
         
         # Transferir todas las cookies y encabezados
+        excluded_headers = ['content-length', 'transfer-encoding', 'connection', 'content-encoding']
         for header, value in response.headers.items():
-            if header.lower() not in ['content-length', 'transfer-encoding', 'connection']:
+            if header.lower() not in excluded_headers:
                 django_response[header] = value
+        
+        # Transferir todas las cookies de la respuesta
+        for cookie in response.cookies:
+            django_response.set_cookie(
+                key=cookie,
+                value=response.cookies[cookie].value,
+                expires=response.cookies[cookie].expires,
+                path=response.cookies[cookie].path,
+                domain=response.cookies[cookie].domain,
+                secure=response.cookies[cookie].secure
+            )
         
         return django_response
         
     except Exception as e:
-        import traceback
+        logger.error(f"Error en grafana_proxy: {str(e)}", exc_info=True)
         error_msg = f"""
         <div style="padding: 20px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px;">
             <h3>Error al conectar con Grafana</h3>
             <p>{str(e)}</p>
             <hr>
-            <p>Prueba acceder directamente a <a href="http://10.100.100.201:3000" target="_blank">Grafana</a></p>
+            <p>Comprueba que Grafana esté funcionando correctamente en <a href="{grafana_url}" target="_blank">{grafana_url}</a></p>
+            <p>Asegúrate de que tu servidor Django puede acceder a esa URL.</p>
             <details>
-                <summary>Detalles técnicos</summary>
-                <pre style="background-color: #f8f9fa; padding: 10px; overflow: auto;">{traceback.format_exc()}</pre>
+                <summary>Detalles técnicos (Expandir)</summary>
+                <p><strong>URL solicitada:</strong> {url}</p>
+                <p><strong>Método:</strong> {request.method}</p>
             </details>
         </div>
         """
