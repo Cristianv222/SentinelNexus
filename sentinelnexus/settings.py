@@ -224,9 +224,7 @@ if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
         "Algunas funcionalidades relacionadas con Proxmox no estarán disponibles. "
         "Asegúrate de configurar PROXMOX_HOST, PROXMOX_USER y PROXMOX_PASSWORD."
     )
-# Configuración de Grafana - importante usar la IP del servidor, no localhost
 # Configuración de Grafana
-# Configuración de Grafana
-GRAFANA_URL = 'http://10.100.100.201:3000'
-GRAFANA_DASHBOARD_ID = 'proxmox-monitoring'  # O el ID de tu dashboard
-GRAFANA_API_KEY = 'glsa_VaGvwKL2W5DDKednEE1qDV826AXC0aUC_5ce865c9'
+GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://10.100.100.201:3000')
+GRAFANA_DASHBOARD_ID = os.environ.get('GRAFANA_DASHBOARD_ID', 'proxmox-monitoring')
+GRAFANA_API_KEY = os.environ.get('GRAFANA_API_KEY', '')  # No incluyas el token aquí
