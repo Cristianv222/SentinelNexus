@@ -47,9 +47,10 @@ def grafana_proxy(request, path=''):
                 <p>Se detectó un bucle de redirección entre Django y Grafana.</p>
                 <p>Posibles soluciones:</p>
                 <ul>
-                    <li>Verifica la configuración en grafana.ini</li>
-                    <li>Asegúrate de que serve_from_sub_path = true y root_url = http://tu-servidor/grafana-proxy</li>
-                    <li>Considera activar auth.anonymous.enabled = true para desarrollo</li>
+                    <li>Verifica la configuración en grafana.ini - asegúrate de que server.root_url está configurado correctamente</li>
+                    <li>Asegúrate de que serve_from_sub_path = true y root_url = http://tu-servidor/grafana-proxy/</li>
+                    <li>Para desarrollo, considera activar auth.anonymous.enabled = true</li>
+                    <li>Comprueba que auth.proxy está correctamente configurado en grafana.ini</li>
                 </ul>
                 <p>Puedes acceder directamente a <a href="{grafana_url}" target="_blank">Grafana</a> para probar que funciona.</p>
             </div>
@@ -64,7 +65,8 @@ def grafana_proxy(request, path=''):
         # Preservar todos los parámetros y encabezados originales
         headers = {}
         for header, value in request.headers.items():
-            if header.lower() not in ['host', 'content-length']:
+            # Excluir headers que podrían causar problemas
+            if header.lower() not in ['host', 'content-length', 'cookie']:
                 headers[header] = value
                 
         # Añadir token si existe
@@ -74,23 +76,36 @@ def grafana_proxy(request, path=''):
         
         # Añadir headers de CORS y origin
         proxy_host = request.get_host()
-        proxy_url_base = f"{request.scheme}://{proxy_host}/grafana-proxy"
+        proxy_scheme = request.scheme
+        proxy_url_base = f"{proxy_scheme}://{proxy_host}/grafana-proxy"
         headers['X-Forwarded-Host'] = proxy_host
-        headers['X-Forwarded-Proto'] = request.scheme
-        headers['Origin'] = f"{request.scheme}://{proxy_host}"
+        headers['X-Forwarded-Proto'] = proxy_scheme
+        headers['Origin'] = f"{proxy_scheme}://{proxy_host}"
         
-        # Headers de autenticación si el usuario está autenticado
+        # Headers de autenticación para Grafana
         if request.user.is_authenticated:
+            # Usar autenticación por proxy de Grafana
             headers['X-WEBAUTH-USER'] = request.user.username
             headers['X-WEBAUTH-NAME'] = request.user.get_full_name() or request.user.username
             headers['X-WEBAUTH-EMAIL'] = getattr(request.user, 'email', '')
-        
-        # Recolectar cookies para enviar a Grafana
+            headers['X-AUTH-REQUEST-USER'] = request.user.username
+            # Cualquier solicitud directa a Grafana debería mantener la sesión del usuario
+            logger.debug(f"Agregando encabezados de autenticación para usuario: {request.user.username}")
+        else:
+            # Si no hay usuario autenticado y se permite anónimo en desarrollo
+            if settings.DEBUG:
+                headers['X-WEBAUTH-USER'] = 'guest'
+                headers['X-AUTH-REQUEST-USER'] = 'guest'
+                logger.debug("Modo depuración: usando autenticación de invitado")
+                
+        # Mapear cookies originales para enviar a Grafana, pero modificar las rutas
         cookies = {}
         for cookie_name, cookie_value in request.COOKIES.items():
-            # Excluir nuestra cookie de contador de redirecciones
+            # Excluir la cookie de contador de redirecciones de Django
             if cookie_name != 'grafana_redirect_count':
                 cookies[cookie_name] = cookie_value
+        
+        logger.debug(f"Enviando solicitud proxy a Grafana con método: {request.method}, URL: {url}")
         
         # Realizar la solicitud con el método original
         response = requests.request(
@@ -105,21 +120,35 @@ def grafana_proxy(request, path=''):
             allow_redirects=False  # Manejar redirecciones manualmente
         )
         
+        logger.debug(f"Respuesta de Grafana: status={response.status_code}, content_type={response.headers.get('Content-Type')}")
+        
         # Manejar redirecciones para evitar bucles
         if response.status_code in [301, 302, 303, 307, 308]:
             redirect_url = response.headers.get('Location', '')
+            logger.debug(f"Grafana solicitó redirección a: {redirect_url}")
             
             # Reescribir la URL de redirección
             if redirect_url.startswith(grafana_url):
-                # Si es una URL completa a Grafana, convertirla a nuestro proxy
+                # URL completa a Grafana -> a nuestro proxy
                 new_redirect = redirect_url.replace(grafana_url, proxy_url_base)
-                logger.debug(f"Rewriting external redirect from {redirect_url} to {new_redirect}")
+                logger.debug(f"Reescribiendo redirección externa de {redirect_url} a {new_redirect}")
                 redirect_url = new_redirect
-            elif redirect_url.startswith('/'):
-                # Si es una URL relativa desde la raíz, añadir nuestro prefijo
+            elif redirect_url.startswith('/') and not redirect_url.startswith('/grafana-proxy'):
+                # URL relativa desde raíz -> añadir nuestro prefijo
                 new_redirect = f"/grafana-proxy{redirect_url}"
-                logger.debug(f"Rewriting relative redirect from {redirect_url} to {new_redirect}")
+                logger.debug(f"Reescribiendo redirección relativa de {redirect_url} a {new_redirect}")
                 redirect_url = new_redirect
+            
+            # Verificar si estamos en el login de Grafana y hay usuario autenticado
+            if '/login' in redirect_url and request.user.is_authenticated:
+                # Intentar redireccionar directamente al dashboard 
+                logger.debug("Detectada redirección a login con usuario autenticado, redirigiendo al dashboard")
+                redirect_url = f"/grafana-proxy/d/grafana_overview"
+            
+            # Si es una redirección a login y estamos en modo depuración
+            if '/login' in redirect_url and settings.DEBUG:
+                # Podríamos intentar usar autenticación anónima
+                logger.debug("Modo DEBUG: Redirección a login")
             
             # Crear respuesta de redirección
             django_response = HttpResponse(status=response.status_code)
@@ -131,15 +160,23 @@ def grafana_proxy(request, path=''):
             # Transferir cookies de la respuesta original
             for cookie in response.cookies:
                 cookie_obj = response.cookies[cookie]
+                cookie_path = cookie_obj.path
+                
+                # Ajustar la ruta para que funcione con nuestro proxy
+                if cookie_path == "/" or not cookie_path:
+                    cookie_path = "/grafana-proxy/"
+                elif not cookie_path.startswith("/grafana-proxy"):
+                    cookie_path = f"/grafana-proxy{cookie_path}"
+                
                 django_response.set_cookie(
                     key=cookie,
                     value=cookie_obj.value,
                     expires=cookie_obj.expires,
-                    path="/grafana-proxy" if cookie_obj.path == "/" else f"/grafana-proxy{cookie_obj.path}",
-                    domain=None,
+                    path=cookie_path,
+                    domain=None,  # Usar dominio por defecto
                     secure=cookie_obj.secure,
                     httponly=True,
-                    samesite='None'  # Para permitir cookies en iframe
+                    samesite='Lax'  # Usar Lax en lugar de None para mejor seguridad
                 )
             
             return django_response
@@ -179,10 +216,24 @@ def grafana_proxy(request, path=''):
                 content_text = content_text.replace('"/d/', '"/grafana-proxy/d/')
                 content_text = content_text.replace('"/explore', '"/grafana-proxy/explore')
                 content_text = content_text.replace('"/plugins/', '"/grafana-proxy/plugins/')
+                content_text = content_text.replace('"/admin', '"/grafana-proxy/admin')
+                content_text = content_text.replace('"/org/', '"/grafana-proxy/org/')
+                content_text = content_text.replace('"/profile/', '"/grafana-proxy/profile/')
+                
+                # También reemplazar referencias con comillas simples
+                content_text = content_text.replace("'/api/", "'/grafana-proxy/api/")
+                content_text = content_text.replace("'/public/", "'/grafana-proxy/public/")
+                
+                # Arreglar las redirecciones en JavaScript
+                content_text = content_text.replace('window.location.href = "/', 'window.location.href = "/grafana-proxy/')
+                content_text = content_text.replace('window.location.href="/', 'window.location.href="/grafana-proxy/')
+                content_text = content_text.replace("window.location.href = '/", "window.location.href = '/grafana-proxy/")
+                content_text = content_text.replace("window.location.href='/", "window.location.href='/grafana-proxy/")
                 
                 # Configuración del subpath en JSON
                 content_text = content_text.replace('"appSubUrl":""', '"appSubUrl":"/grafana-proxy"')
                 content_text = content_text.replace('"appSubUrl":"/"', '"appSubUrl":"/grafana-proxy/"')
+                content_text = content_text.replace('"appSubUrl":', '"appSubUrl":"/grafana-proxy",')
                 
                 # Reemplazar referencias a la URL completa
                 content_text = content_text.replace(grafana_url, proxy_url_base)
@@ -223,10 +274,10 @@ def grafana_proxy(request, path=''):
                 value=cookie_obj.value,
                 expires=cookie_obj.expires,
                 path=cookie_path,
-                domain=None,  # Usar dominio por defecto
+                domain=None,
                 secure=cookie_obj.secure,
-                httponly=True,  # Mejorar seguridad
-                samesite='None'  # Permitir uso en iframe
+                httponly=True,
+                samesite='Lax'  # Mejor seguridad que 'None'
             )
         
         return django_response
