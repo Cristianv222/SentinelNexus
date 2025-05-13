@@ -15,37 +15,46 @@
         <div class="card-header">
             <h5 class="card-title mb-0">Monitoreo en tiempo real</h5>
         </div>
-        <div class="card-body p-0">
-            <!-- Acceso directo al dashboard de Grafana -->
-            <iframe src="{{ GRAFANA_URL }}/d/{{ dashboard_id }}?orgId=1&kiosk"
-                    width="100%" height="800" frameborder="0"></iframe>
-        </div>
-        <div class="card-footer">
-            <small class="text-muted">Si el dashboard no se carga correctamente, puedes 
-                <a href="{{ GRAFANA_URL }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
-                    <i class="fas fa-external-link-alt me-1"></i> Abrir Grafana directamente
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> Para visualizar el dashboard de monitoreo, haz clic en el botón a continuación para abrir Grafana en una nueva ventana.
+            </div>
+            
+            <div class="text-center my-4">
+                <a href="http://10.100.100.201:3000/d/proxmox-monitoring?orgId=1" target="_blank" class="btn btn-primary btn-lg">
+                    <i class="fas fa-external-link-alt me-2"></i> Abrir Dashboard de Grafana
                 </a>
-            </small>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-dark text-white">
+                            <h5 class="mb-0">Dashboard Principal</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <p>Dashboard general con todas las métricas</p>
+                            <a href="http://10.100.100.201:3000" target="_blank" class="btn btn-outline-primary">
+                                <i class="fas fa-tachometer-alt me-1"></i> Dashboard General
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-dark text-white">
+                            <h5 class="mb-0">Panel de Alertas</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <p>Visualizar las alertas configuradas</p>
+                            <a href="http://10.100.100.201:3000/alerting/list" target="_blank" class="btn btn-outline-danger">
+                                <i class="fas fa-bell me-1"></i> Alertas
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-    /* Estilos opcionales para mejorar la apariencia */
-    .card {
-        border: none;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    }
-    
-    .card-header {
-        background-color: #343a40;
-        color: white;
-    }
-    
-    iframe {
-        border-radius: 0 0 0.25rem 0.25rem;
-    }
-</style>
 {% endblock %}

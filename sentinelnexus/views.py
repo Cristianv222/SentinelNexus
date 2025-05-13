@@ -23,7 +23,28 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 
-
+def grafana_proxy(request, path=''):
+    """
+    Proxy para Grafana que evita problemas de CORS
+    """
+    grafana_url = settings.GRAFANA_URL.rstrip('/')
+    url = f"{grafana_url}/{path}" if path else grafana_url
+    
+    try:
+        response = requests.get(
+            url, 
+            params=request.GET,
+            headers={'Authorization': f'Bearer {settings.GRAFANA_API_KEY}'},
+            timeout=5
+        )
+        return HttpResponse(
+            content=response.content,
+            status=response.status_code,
+            content_type=response.headers.get('Content-Type')
+        )
+    except Exception as e:
+        return HttpResponse(f"Error al conectar con Grafana: {str(e)}", status=500)
+    
 @login_required
 def grafana_dashboard(request):
     """

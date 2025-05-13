@@ -47,5 +47,7 @@ urlpatterns = [
     path('api/metrics/', views.api_metrics, name='api_metrics'),
     # Dashboard de Grafana (simplificado)
 path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
-
+# Proxy Grafana
+path('grafana-proxy/', views.grafana_proxy, name='grafana_proxy_base'),
+path('grafana-proxy/<path:path>', views.grafana_proxy, name='grafana_proxy'),
 ]

@@ -15,6 +15,7 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 from celery.schedules import crontab
 
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -223,8 +224,7 @@ if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
         "Algunas funcionalidades relacionadas con Proxmox no estarán disponibles. "
         "Asegúrate de configurar PROXMOX_HOST, PROXMOX_USER y PROXMOX_PASSWORD."
     )
-    # Configuración de Grafana
-GRAFANA_ENABLED = True
-GRAFANA_URL = 'http://10.100.100.201:3000'  # URL del servidor Grafana
-GRAFANA_DASHBOARD_ID = 'proxmox-monitoring'  # ID de tu dashboard
-GRAFANA_DIRECT_ACCESS = True  # Si True, acceder directamente; si False, usar proxy
+# Configuración de Grafana - importante usar la IP del servidor, no localhost
+# Configuración de Grafana
+GRAFANA_URL = 'http://10.100.100.201:3000'  # Cambia a la URL correcta
+GRAFANA_API_KEY = ''  # Deja en blanco si no tienes un API key
