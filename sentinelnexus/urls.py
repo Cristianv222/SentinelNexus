@@ -22,12 +22,16 @@ urlpatterns = [
     # Sincronización con Proxmox
     path('sync-proxmox/', views.sync_proxmox, name='sync_proxmox'),
     
-    # Rutas de la aplicación - VM actions (más específicas primero)
-    path('vms/<str:node_name>/<int:vmid>/<str:vm_type>/<str:action>/', views.vm_action, name='vm_action_with_type'),
-    path('vms/<str:node_name>/<int:vmid>/<str:action>/', views.vm_action, name='vm_action'),
-    path('vms/<str:node_name>/<int:vmid>/<str:vm_type>/', views.vm_detail, name='vm_detail_with_type'),
+    # Rutas para detalles de VM (sin acciones)
     path('vms/<str:node_name>/<int:vmid>/', views.vm_detail, name='vm_detail'),
-    path('vm/<str:node_name>/<int:vmid>/<str:vm_type>/console/', views.vm_console, name='vm_console'),
+    path('vms/<str:node_name>/<int:vmid>/type/<str:vm_type>/', views.vm_detail, name='vm_detail_with_type'),
+    
+    # Rutas para acciones de VM (claramente separadas)
+    path('vms/<str:node_name>/<int:vmid>/action/<str:action>/', views.vm_action, name='vm_action'),
+    path('vms/<str:node_name>/<int:vmid>/type/<str:vm_type>/action/<str:action>/', views.vm_action, name='vm_action_with_type'),
+    
+    # Consola de VM
+    path('vms/<str:node_name>/<int:vmid>/type/<str:vm_type>/console/', views.vm_console, name='vm_console'),
     
     # Node details
     path('nodes/<str:node_name>/', views.node_detail, name='node_detail'),
@@ -45,9 +49,11 @@ urlpatterns = [
     path('api/vms/<str:node_name>/<int:vmid>/metrics/', views.api_vm_metrics, name='api_vm_metrics'),
     path('api/dashboard/metrics/', views.api_dashboard_metrics, name='api_dashboard_metrics'),
     path('api/metrics/', views.api_metrics, name='api_metrics'),
-    # Dashboard de Grafana (simplificado)
-path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
-# Proxy Grafana
-path('grafana-proxy/', views.grafana_proxy, name='grafana_proxy_base'),
-path('grafana-proxy/<path:path>', views.grafana_proxy, name='grafana_proxy'),
+    
+    # Dashboard de Grafana
+    path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
+    
+    # Proxy Grafana - debe estar al final para evitar conflictos con otras rutas
+    path('grafana-proxy/', views.grafana_proxy, name='grafana_proxy_base'),
+    path('grafana-proxy/<path:path>', views.grafana_proxy, name='grafana_proxy'),
 ]

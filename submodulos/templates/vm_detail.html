@@ -7,7 +7,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>{{ vm_status.name }} (ID: {{ vmid }})</h1>
         <div>
-            <a href="{% url 'node_detail' node_name %}" class="btn btn-secondary">
+            <a href="/nodes/{{ node_name }}/" class="btn btn-secondary">
                 <i class="fas fa-arrow-left mr-2"></i> Volver al Nodo
             </a>
             <button id="refresh-vm" class="btn btn-primary ml-2">
@@ -91,7 +91,7 @@
                             <div class="progress mt-1">
                                 <div class="progress-bar bg-primary" role="progressbar" 
                                      aria-valuenow="{{ vm_status.cpu|floatformat:1 }}" 
-                                     aria-valuemin="0" aria-valuemax="100">
+                                     aria-valuemin="0" aria-valuemax="100"
                                     {{ vm_status.cpu|floatformat:1 }}%
                                 </div>
                             </div>
@@ -105,7 +105,7 @@
                             <div class="progress mt-1">
                                 <div class="progress-bar bg-success" role="progressbar" 
                                      aria-valuenow="{{ vm_status.mem_percent|floatformat:1 }}" 
-                                     aria-valuemin="0" aria-valuemax="100">
+                                     aria-valuemin="0" aria-valuemax="100"
                                     {{ vm_status.mem_percent|floatformat:1 }}%
                                 </div>
                             </div>
@@ -134,12 +134,12 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% if vm_status.status == 'running' and vm_status.netin %}
-                                {% for key, value in vm_status.netin.items %}
+                                {% if vm_status.status == 'running' and vm_status.network_data %}
+                                {% for net in vm_status.network_data %}
                                 <tr>
-                                    <td>{{ key }}</td>
-                                    <td>{{ value|filesizeformat }}</td>
-                                    <td>{{ vm_status.netout|get_item:key|filesizeformat }}</td>
+                                    <td>{{ net.interface }}</td>
+                                    <td>{{ net.rx|filesizeformat }}</td>
+                                    <td>{{ net.tx|filesizeformat }}</td>
                                 </tr>
                                 {% endfor %}
                                 {% else %}
@@ -181,11 +181,9 @@
             <div class="tab-content p-3" id="configTabsContent">
                 <div class="tab-pane fade show active" id="general" role="tabpanel">
                     <dl class="row">
-                        {% for key, value in vm_config.items %}
-                            {% if key != 'digest' and key != 'smbios1' and not key|startswith:'net' and not key|startswith:'ide' and not key|startswith:'scsi' and not key|startswith:'sata' %}
-                            <dt class="col-sm-3">{{ key }}</dt>
-                            <dd class="col-sm-9">{{ value }}</dd>
-                            {% endif %}
+                        {% for key, value in vm_config.general.items %}
+                        <dt class="col-sm-3">{{ key }}</dt>
+                        <dd class="col-sm-9">{{ value }}</dd>
                         {% endfor %}
                     </dl>
                 </div>
@@ -200,14 +198,12 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for key, value in vm_config.items %}
-                                    {% if key|startswith:'ide' or key|startswith:'scsi' or key|startswith:'sata' %}
-                                    <tr>
-                                        <td>{{ key|slice:":4" }}</td>
-                                        <td>{{ key|slice:"4:" }}</td>
-                                        <td>{{ value }}</td>
-                                    </tr>
-                                    {% endif %}
+                                {% for hw in vm_config.hardware %}
+                                <tr>
+                                    <td>{{ hw.type }}</td>
+                                    <td>{{ hw.id }}</td>
+                                    <td>{{ hw.value }}</td>
+                                </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -223,13 +219,11 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for key, value in vm_config.items %}
-                                    {% if key|startswith:'net' %}
-                                    <tr>
-                                        <td>{{ key|slice:"3:" }}</td>
-                                        <td>{{ value }}</td>
-                                    </tr>
-                                    {% endif %}
+                                {% for net in vm_config.network %}
+                                <tr>
+                                    <td>{{ net.id }}</td>
+                                    <td>{{ net.value }}</td>
+                                </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -272,7 +266,7 @@
                                 <span class="badge bg-danger">{{ task.status }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ task.starttime|timestamp_to_datetime }}</td>
+                            <td>{{ task.starttime_formatted }}</td>
                             <td>
                                 {% if task.duration %}
                                 {{ task.duration }} segundos
@@ -305,7 +299,8 @@
         button.addEventListener('click', function() {
             const action = this.dataset.action;
             if (confirm(`¿Estás seguro de que deseas realizar la acción "${action}"?`)) {
-                fetch(`{% url 'vm_action_with_type' node_name vmid vm_type 'ACTION' %}`.replace('ACTION', action), {
+                // URL corregida para las acciones de VM
+                fetch(`/vms/{{ node_name }}/{{ vmid }}/type/{{ vm_type }}/action/${action}/`, {
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
                     }

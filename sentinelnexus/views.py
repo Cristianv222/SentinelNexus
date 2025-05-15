@@ -1105,6 +1105,7 @@ def node_detail(request, node_name):
         messages.error(request, f"Error al obtener detalles del nodo: {str(e)}")
         return redirect('dashboard')
 
+
 @login_required
 def vm_detail(request, node_name, vmid, vm_type=None):
     """
@@ -1135,6 +1136,11 @@ def vm_detail(request, node_name, vmid, vm_type=None):
                 messages.error(request, f"No se pudo detectar el tipo de VM para ID {vmid}")
                 return redirect('dashboard')
         
+        # Validar tipo de VM
+        if vm_type not in ['qemu', 'lxc']:
+            messages.error(request, f"Tipo de VM '{vm_type}' no válido. Debe ser 'qemu' o 'lxc'.")
+            return redirect('dashboard')
+        
         # Obtener estado actual
         vm_status = {}
         vm_config = {}
@@ -1145,6 +1151,52 @@ def vm_detail(request, node_name, vmid, vm_type=None):
             else:  # 'lxc'
                 vm_status = proxmox.nodes(node_name).lxc(vmid).status.current.get()
                 vm_config = proxmox.nodes(node_name).lxc(vmid).config.get()
+                
+            # Procesar estados y agregar información adicional
+            vm_status['type'] = vm_type
+            vm_status['name'] = vm_status.get('name', f"VM-{vmid}")
+            
+            # Calcular uso de recursos en porcentaje para mostrar en gráficos
+            if 'maxmem' in vm_status and vm_status['maxmem'] > 0:
+                vm_status['mem_percent'] = round((vm_status.get('mem', 0) / vm_status['maxmem']) * 100, 1)
+            else:
+                vm_status['mem_percent'] = 0
+                
+            vm_status['cpu_percent'] = round(vm_status.get('cpu', 0) * 100, 1)
+            
+            # Calcular uso de disco en un formato legible
+            if vm_type == 'qemu':
+                try:
+                    # Intentar obtener datos de RRD para estadísticas de disco
+                    disk_info = proxmox.nodes(node_name).qemu(vmid).rrddata.get(timeframe='hour')
+                    if disk_info and len(disk_info) > 0:
+                        last_data = disk_info[-1]
+                        vm_status['disk_used'] = round(last_data.get('disk', 0) / (1024 ** 3), 2)  # GB
+                    else:
+                        vm_status['disk_used'] = 0
+                        
+                    # Calcular tamaño total de discos desde la configuración
+                    total_disk = 0
+                    for key, value in vm_config.items():
+                        if isinstance(value, str) and 'size=' in value:
+                            try:
+                                size_str = value.split('size=')[1].split(',')[0]
+                                if 'G' in size_str:
+                                    total_disk += float(size_str.replace('G', ''))
+                                elif 'M' in size_str:
+                                    total_disk += float(size_str.replace('M', '')) / 1024
+                            except (ValueError, IndexError) as e:
+                                logger.warning(f"Error al parsear tamaño de disco: {str(e)}")
+                                
+                    vm_status['disk_total'] = total_disk
+                except Exception as disk_err:
+                    logger.warning(f"Error al calcular uso de disco: {str(disk_err)}")
+                    vm_status['disk_used'] = 0
+                    vm_status['disk_total'] = 0
+            else:  # lxc
+                vm_status['disk_used'] = round(vm_status.get('disk', 0) / (1024 ** 3), 2)  # GB
+                vm_status['disk_total'] = round(vm_status.get('maxdisk', 0) / (1024 ** 3), 2)  # GB
+                
         except Exception as e:
             messages.error(request, f"Error al obtener detalles de la VM: {str(e)}")
             return redirect('dashboard')
@@ -1157,6 +1209,27 @@ def vm_detail(request, node_name, vmid, vm_type=None):
                 limit=10,
                 start=0
             )
+            
+            # Procesar las tareas para mejorar la legibilidad
+            for task in tasks:
+                # Convertir timestamp a formato legible
+                if 'starttime' in task:
+                    try:
+                        task['starttime_readable'] = datetime.fromtimestamp(task['starttime']).strftime('%d/%m/%Y %H:%M:%S')
+                    except:
+                        task['starttime_readable'] = 'Desconocido'
+                        
+                # Formatear duración
+                if 'upid' in task and 'endtime' in task and 'starttime' in task:
+                    try:
+                        duration = task['endtime'] - task['starttime']
+                        task['duration'] = f"{duration:.2f}s"
+                    except:
+                        task['duration'] = 'Desconocido'
+                
+                # Añadir descripción amigable
+                task['description'] = get_task_description(task.get('type', ''), vm_type)
+                
         except Exception as e:
             logger.warning(f"Error al obtener historial de tareas: {str(e)}")
         
@@ -1164,10 +1237,177 @@ def vm_detail(request, node_name, vmid, vm_type=None):
         try:
             db_node = Nodo.objects.get(nombre=node_name)
             db_vm = MaquinaVirtual.objects.get(nodo=db_node, vmid=vmid)
+            
+            # Actualizar la información de la VM en la base de datos si es necesario
+            if db_vm.estado != vm_status.get('status', 'unknown'):
+                db_vm.estado = vm_status.get('status', 'unknown')
+                db_vm.last_checked = datetime.now()
+                db_vm.save()
+                
             db_resources = AsignacionRecursosInicial.objects.filter(maquina_virtual=db_vm)
+            
         except (Nodo.DoesNotExist, MaquinaVirtual.DoesNotExist):
             db_vm = None
             db_resources = []
+            
+            # Si la VM no existe en la base de datos, intentamos crearla
+            try:
+                if vm_status and 'status' in vm_status:
+                    # Buscar el nodo en la BD o crearlo si no existe
+                    db_node, created = Nodo.objects.get_or_create(
+                        nombre=node_name,
+                        defaults={
+                            'hostname': node_name,
+                            'estado': 'activo'
+                        }
+                    )
+                    
+                    # Buscar un SO compatible o usar uno desconocido
+                    try:
+                        if vm_type == 'qemu':
+                            ostype = vm_config.get('ostype', 'other')
+                            if 'win' in ostype.lower():
+                                sistema_operativo = SistemaOperativo.objects.filter(nombre__icontains='Windows').first()
+                            elif 'linux' in ostype.lower():
+                                sistema_operativo = SistemaOperativo.objects.filter(nombre__icontains='Linux').first()
+                            else:
+                                sistema_operativo = SistemaOperativo.objects.get(nombre='Unknown')
+                        else:  # lxc
+                            # Para LXC intentamos obtener el template
+                            if 'ostemplate' in vm_config and vm_config['ostemplate']:
+                                template = vm_config['ostemplate']
+                                if 'ubuntu' in template.lower():
+                                    sistema_operativo = SistemaOperativo.objects.filter(nombre__icontains='Ubuntu').first()
+                                elif 'debian' in template.lower():
+                                    sistema_operativo = SistemaOperativo.objects.filter(nombre__icontains='Debian').first()
+                                elif 'centos' in template.lower():
+                                    sistema_operativo = SistemaOperativo.objects.filter(nombre__icontains='CentOS').first()
+                                else:
+                                    sistema_operativo = SistemaOperativo.objects.get(nombre='Unknown')
+                            else:
+                                sistema_operativo = SistemaOperativo.objects.get(nombre='Unknown')
+                    except:
+                        # Si hay algún error, usar SO desconocido
+                        sistema_operativo = SistemaOperativo.objects.get(nombre='Unknown')
+                    
+                    # Crear la VM en la base de datos
+                    db_vm = MaquinaVirtual.objects.create(
+                        nodo=db_node,
+                        vmid=vmid,
+                        nombre=vm_status.get('name', f"VM-{vmid}"),
+                        hostname=vm_status.get('name', f"VM-{vmid}"),
+                        sistema_operativo=sistema_operativo,
+                        vm_type=vm_type,
+                        estado=vm_status.get('status', 'unknown'),
+                        is_monitored=True,
+                        last_checked=datetime.now()
+                    )
+                    
+                    messages.success(request, f"Se ha registrado la VM {db_vm.nombre} en la base de datos.")
+                    
+                    # También podríamos sincronizar los recursos aquí si es necesario
+            except Exception as create_err:
+                logger.error(f"Error al crear VM en la base de datos: {str(create_err)}")
+        
+        # Obtener datos históricos para gráficos
+        charts_data = {}
+        if vm_status.get('status') == 'running':
+            try:
+                rrd_data = None
+                if vm_type == 'qemu':
+                    rrd_data = proxmox.nodes(node_name).qemu(vmid).rrddata.get(
+                        timeframe='hour',
+                        cf='AVERAGE'
+                    )
+                else:  # 'lxc'
+                    rrd_data = proxmox.nodes(node_name).lxc(vmid).rrddata.get(
+                        timeframe='hour',
+                        cf='AVERAGE'
+                    )
+                    
+                if rrd_data:
+                    # Preparar datos para gráficos
+                    timestamps = []
+                    cpu_data = []
+                    mem_data = []
+                    disk_read_data = []
+                    disk_write_data = []
+                    net_in_data = []
+                    net_out_data = []
+                    
+                    for point in rrd_data:
+                        # Convertir timestamp a formato legible
+                        time_val = point.get('time', 0)
+                        timestamps.append(datetime.fromtimestamp(time_val).strftime('%H:%M'))
+                        
+                        # Datos de CPU (convertir a porcentaje)
+                        cpu_data.append(point.get('cpu', 0) * 100)
+                        
+                        # Datos de memoria (convertir a porcentaje)
+                        if 'mem' in point and 'maxmem' in point and point['maxmem'] > 0:
+                            mem_data.append((point['mem'] / point['maxmem']) * 100)
+                        else:
+                            mem_data.append(0)
+                            
+                        # Datos de I/O de disco en MB/s
+                        disk_read_data.append(point.get('diskread', 0) / (1024 * 1024))
+                        disk_write_data.append(point.get('diskwrite', 0) / (1024 * 1024))
+                        
+                        # Datos de red en Mbps
+                        net_in_data.append(point.get('netin', 0) / (1024 * 1024))
+                        net_out_data.append(point.get('netout', 0) / (1024 * 1024))
+                    
+                    # Guardar datos para gráficos
+                    charts_data = {
+                        'timestamps': timestamps,
+                        'cpu': cpu_data,
+                        'memory': mem_data,
+                        'disk_read': disk_read_data,
+                        'disk_write': disk_write_data,
+                        'net_in': net_in_data,
+                        'net_out': net_out_data
+                    }
+            except Exception as chart_err:
+                logger.warning(f"Error al obtener datos para gráficos: {str(chart_err)}")
+        
+        # Información de la consola VNC si está disponible
+        console_info = None
+        if vm_type == 'qemu' and vm_status.get('status') == 'running':
+            try:
+                # Verificar si hay configuración VNC
+                if 'vga' in vm_config:
+                    console_info = {
+                        'available': True,
+                        'type': 'VNC',
+                        'url': f"/vms/{node_name}/{vmid}/type/{vm_type}/console/"  # URL directa
+                    }
+                else:
+                    console_info = {
+                        'available': False,
+                        'message': 'Esta VM no tiene configurada una interfaz VGA/VNC'
+                    }
+            except Exception as console_err:
+                logger.warning(f"Error al obtener información de consola: {str(console_err)}")
+        elif vm_type == 'lxc':
+            console_info = {
+                'available': False,
+                'message': 'La consola VNC no está disponible para contenedores LXC'
+            }
+        else:
+            console_info = {
+                'available': False,
+                'message': 'La consola solo está disponible cuando la VM está en ejecución'
+            }
+        
+        # Construir URLs para acciones directamente en lugar de usar reverse
+        action_urls = {
+            'start': f"/vms/{node_name}/{vmid}/type/{vm_type}/action/start/",
+            'stop': f"/vms/{node_name}/{vmid}/type/{vm_type}/action/stop/",
+            'shutdown': f"/vms/{node_name}/{vmid}/type/{vm_type}/action/shutdown/",
+            'restart': f"/vms/{node_name}/{vmid}/type/{vm_type}/action/restart/",
+            'suspend': f"/vms/{node_name}/{vmid}/type/{vm_type}/action/suspend/" if vm_type == 'qemu' else None,
+            'resume': f"/vms/{node_name}/{vmid}/type/{vm_type}/action/resume/" if vm_type == 'qemu' else None,
+        }
         
         return render(request, 'vm_detail.html', {
             'node_name': node_name,
@@ -1177,11 +1417,44 @@ def vm_detail(request, node_name, vmid, vm_type=None):
             'vm_config': vm_config,
             'tasks': tasks,
             'db_vm': db_vm,
-            'db_resources': db_resources
+            'db_resources': db_resources,
+            'charts_data': charts_data,
+            'console_info': console_info,
+            'action_urls': action_urls
         })
     except Exception as e:
         messages.error(request, f"Error al obtener detalles de la VM: {str(e)}")
         return redirect('dashboard')
+
+# Función auxiliar para obtener una descripción amigable de las tareas
+def get_task_description(task_type, vm_type):
+    """
+    Devuelve una descripción amigable para un tipo de tarea.
+    """
+    descriptions = {
+        'vncproxy': 'Conexión a consola VNC',
+        'qmstart': 'Iniciar VM',
+        'qmstop': 'Detener VM',
+        'qmshutdown': 'Apagar VM',
+        'qmreset': 'Reiniciar VM',
+        'qmsuspend': 'Suspender VM',
+        'qmresume': 'Reanudar VM',
+        'qmmigrate': 'Migrar VM',
+        'qmclone': 'Clonar VM',
+        'qmcreate': 'Crear VM',
+        'qmdelete': 'Eliminar VM',
+        'qmreboot': 'Reiniciar VM',
+        'vzstart': 'Iniciar Contenedor',
+        'vzstop': 'Detener Contenedor',
+        'vzshutdown': 'Apagar Contenedor',
+        'vzreboot': 'Reiniciar Contenedor',
+        'vzmigrate': 'Migrar Contenedor',
+        'vzclone': 'Clonar Contenedor',
+        'vzcreate': 'Crear Contenedor',
+        'vzdelete': 'Eliminar Contenedor'
+    }
+    
+    return descriptions.get(task_type, f'Tarea {task_type}')
 
 @login_required
 def vm_action(request, node_name, vmid, action, vm_type=None):

@@ -415,11 +415,11 @@
             </div>
             
             <div class="d-flex gap-2">
-                <a href="{% url 'dashboard' %}" class="btn btn-primary btn-sm">
+                <a href="/dashboard/" class="btn btn-primary btn-sm">
                     <i class="fas fa-sync-alt me-1"></i>Reintentar
                 </a>
                 {% if user.is_superuser %}
-                <a href="{% url 'admin:index' %}" class="btn btn-secondary btn-sm">
+                <a href="/admin/" class="btn btn-secondary btn-sm">
                     <i class="fas fa-cog me-1"></i>Admin
                 </a>
                 {% endif %}
@@ -570,22 +570,25 @@
             </div>
             
             <div class="vm-footer">
-                <a href="{% url 'vm_detail_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type %}" 
+                <!-- URL corregida para detalles de VM -->
+                <a href="/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/" 
                    class="btn btn-oscuro btn-sm" title="Ver detalles">
                     <i class="fas fa-eye me-1"></i>Detalles
                 </a>
                 
                 {% if vm.status == 'stopped' %}
-                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='start' %}" 
+                <!-- URL corregida para acción de iniciar -->
+                <a href="/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/action/start/" 
                    class="btn btn-success btn-sm vm-action-btn" title="Iniciar" data-action="start">
                     <i class="fas fa-play me-1"></i>Iniciar
                 </a>
                 {% else %}
-                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='stop' %}" 
+                <!-- URLs corregidas para detener y reiniciar -->
+                <a href="/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/action/stop/" 
                    class="btn btn-danger btn-sm vm-action-btn" title="Detener" data-action="stop">
                     <i class="fas fa-stop me-1"></i>Detener
                 </a>
-                <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='restart' %}" 
+                <a href="/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/action/restart/" 
                    class="btn btn-tomate btn-sm vm-action-btn" title="Reiniciar" data-action="restart">
                     <i class="fas fa-sync-alt me-1"></i>Reiniciar
                 </a>
@@ -647,7 +650,8 @@
                             <small>{{ node.disk_used|default:"0" }}/{{ node.disk_total|default:"0" }}GB</small>
                         </td>
                         <td class="text-center">
-                            <a href="{% url 'node_detail' node_name=node.node %}" class="btn btn-sm btn-tomate btn-action">
+                            <!-- URL corregida para detalles de nodo -->
+                            <a href="/nodes/{{ node.node }}/" class="btn btn-sm btn-tomate btn-action">
                                 <i class="fas fa-eye"></i>
                             </a>
                         </td>
@@ -720,18 +724,21 @@
                             <div class="small-text">↓{{ vm.net_in|default:"0"|floatformat:1 }} / ↑{{ vm.net_out|default:"0"|floatformat:1 }}</div>
                         </td>
                         <td class="text-center">
-                            <a href="{% url 'vm_detail_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type %}" 
+                            <!-- URL corregida para detalles de VM en la tabla -->
+                            <a href="/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/" 
                                class="btn btn-sm btn-oscuro btn-action" title="Ver detalles">
                                 <i class="fas fa-eye"></i>
                             </a>
                             
                             {% if vm.status == 'stopped' %}
-                            <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='start' %}" 
+                            <!-- URL corregida para acción de iniciar en la tabla -->
+                            <a href="/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/action/start/" 
                                class="btn btn-sm btn-success btn-action vm-action-btn" title="Iniciar" data-action="start">
                                 <i class="fas fa-play"></i>
                             </a>
                             {% else %}
-                            <a href="{% url 'vm_action_with_type' node_name=vm.node vmid=vm.vmid vm_type=vm.type action='stop' %}" 
+                            <!-- URL corregida para acción de detener en la tabla -->
+                            <a href="/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/action/stop/" 
                                class="btn btn-sm btn-danger btn-action vm-action-btn" title="Detener" data-action="stop">
                                 <i class="fas fa-stop"></i>
                             </a>
@@ -831,346 +838,347 @@
 {% endfor %}
 
 <script>
-    // Cargar datos de VMs desde los elementos script
-    const vmData = {};
-    document.querySelectorAll('script[id^="vm-data-"]').forEach(script => {
-        try {
-            const data = JSON.parse(script.textContent);
-            vmData[data.vmid] = data;
-        } catch (e) {
-            console.error('Error al parsear datos de VM:', e);
-        }
-    });
-    
-    // Configurar la hora de última actualización
-    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-    
-    // Almacenar referencias a los gráficos
-    const vmCharts = {};
-    
-    // Inicializar datos para las etiquetas de tiempo
-    function initTimeLabels() {
-        const labels = [];
-        const now = new Date();
-        for (let i = 9; i >= 0; i--) {
-            const date = new Date(now - i * 60000);
-            labels.push(date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-        }
-        return labels;
+  
+// Cargar datos de VMs desde los elementos script
+const vmData = {};
+document.querySelectorAll('script[id^="vm-data-"]').forEach(script => {
+    try {
+        const data = JSON.parse(script.textContent);
+        vmData[data.vmid] = data;
+    } catch (e) {
+        console.error('Error al parsear datos de VM:', e);
     }
-    
-    // Inicializar gráficos para VMs encendidas
-    Object.keys(vmData).forEach(vmId => {
-        const vm = vmData[vmId];
-        try {
-            // Contexto del gráfico
-            const ctx = document.getElementById('vm-chart-' + vmId);
-            if (!ctx) return;
-            
-            // Datos iniciales
-            const cpuData = Array(10).fill(vm.cpu);
-            const memData = Array(10).fill(vm.mem);
-            
-            // Crear el gráfico
-            const chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: initTimeLabels(),
-                    datasets: [
-                        {
-                            label: 'CPU',
-                            data: cpuData,
-                            borderColor: '#FF5722',
-                            backgroundColor: 'rgba(255, 87, 34, 0.05)',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            pointRadius: 0,
-                            pointHoverRadius: 3
-                        },
-                        {
-                            label: 'RAM',
-                            data: memData,
-                            borderColor: '#FFC107',
-                            backgroundColor: 'rgba(255, 193, 7, 0.05)',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            pointRadius: 0,
-                            pointHoverRadius: 3
+});
+
+// Configurar la hora de última actualización
+document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+// Almacenar referencias a los gráficos
+const vmCharts = {};
+
+// Inicializar datos para las etiquetas de tiempo
+function initTimeLabels() {
+    const labels = [];
+    const now = new Date();
+    for (let i = 9; i >= 0; i--) {
+        const date = new Date(now - i * 60000);
+        labels.push(date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+    }
+    return labels;
+}
+
+// Inicializar gráficos para VMs encendidas
+Object.keys(vmData).forEach(vmId => {
+    const vm = vmData[vmId];
+    try {
+        // Contexto del gráfico
+        const ctx = document.getElementById('vm-chart-' + vmId);
+        if (!ctx) return;
+        
+        // Datos iniciales
+        const cpuData = Array(10).fill(vm.cpu);
+        const memData = Array(10).fill(vm.mem);
+        
+        // Crear el gráfico
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: initTimeLabels(),
+                datasets: [
+                    {
+                        label: 'CPU',
+                        data: cpuData,
+                        borderColor: '#FF5722',
+                        backgroundColor: 'rgba(255, 87, 34, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    },
+                    {
+                        label: 'RAM',
+                        data: memData,
+                        borderColor: '#FFC107',
+                        backgroundColor: 'rgba(255, 193, 7, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.raw + '%';
+                            }
                         }
-                    ]
+                    }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.raw + '%';
-                                }
-                            }
-                        }
+                scales: {
+                    x: {
+                        display: false
                     },
-                    scales: {
-                        x: {
-                            display: false
-                        },
-                        y: {
-                            display: false,
-                            suggestedMin: 0,
-                            suggestedMax: 100
-                        }
-                    },
-                    animation: {
-                        duration: 500
+                    y: {
+                        display: false,
+                        suggestedMin: 0,
+                        suggestedMax: 100
                     }
+                },
+                animation: {
+                    duration: 500
                 }
-            });
-            
-            // Guardar referencia
-            vmCharts[vmId] = chart;
-        } catch (error) {
-            console.error(Error al inicializar el gráfico para VM ${vmId}:, error);
-        }
-    });
-    
-    // Función para actualizar los datos en tiempo real mediante API
-    function updateMetrics() {
-        try {
-            // Mostrar indicador de carga
-            const refreshBtn = document.getElementById('refresh-btn');
-            if (refreshBtn) {
-                refreshBtn.innerHTML = '<div class="spinner"></div> Actualizando...';
             }
-            
-            fetch('/api/dashboard/metrics/')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Error al obtener métricas');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        // Actualizar estadísticas de VMs
-                        data.data.vms.forEach(vm => {
-                            const vmCard = document.querySelector(.vm-card[data-vmid="${vm.vmid}"]);
-                            if (!vmCard) return;
-                            
-                            // Solo actualizar VMs en ejecución
-                            if (vm.status === 'running') {
-                                // Actualizar valores de CPU
-                                const cpuValue = vmCard.querySelector('.cpu-stat .vm-stat-value');
-                                const cpuBar = vmCard.querySelector('.cpu-stat .progress-bar');
-                                if (cpuValue) cpuValue.textContent = vm.cpu.toFixed(1) + '%';
-                                if (cpuBar) cpuBar.style.width = vm.cpu.toFixed(1) + '%';
-                                
-                                // Actualizar valores de RAM
-                                const memValue = vmCard.querySelector('.mem-stat .vm-stat-value');
-                                const memBar = vmCard.querySelector('.mem-stat .progress-bar');
-                                const memDetail = vmCard.querySelector('.mem-stat .mem-detail');
-                                if (memValue) memValue.textContent = vm.mem.toFixed(1) + '%';
-                                if (memBar) memBar.style.width = vm.mem.toFixed(1) + '%';
-                                if (memDetail) memDetail.textContent = ${vm.mem_used}/${vm.mem_total}MB;
-                                
-                                // Actualizar valores de disco
-                                const diskRead = vmCard.querySelector('.disk-stats .disk-read');
-                                const diskWrite = vmCard.querySelector('.disk-stats .disk-write');
-                                const diskUsage = vmCard.querySelector('.disk-stats .disk-usage');
-                                if (diskRead) diskRead.textContent = R: ${vm.disk_read.toFixed(1)}MB/s;
-                                if (diskWrite) diskWrite.textContent = W: ${vm.disk_write.toFixed(1)}MB/s;
-                                if (diskUsage) diskUsage.textContent = ${vm.disk_used}/${vm.disk_total}GB;
-                                
-                                // Actualizar valores de red
-                                const netIn = vmCard.querySelector('.net-stats .net-in');
-                                const netOut = vmCard.querySelector('.net-stats .net-out');
-                                if (netIn) netIn.textContent = ↓ ${vm.net_in.toFixed(1)}Mbps;
-                                if (netOut) netOut.textContent = ↑ ${vm.net_out.toFixed(1)}Mbps;
-                                
-                                // Actualizar gráficos si existen
-                                if (vmCharts[vm.vmid]) {
-                                    updateVmChart(vm);
-                                }
-                            }
-                        });
-                        
-                        // Actualizar la hora de última actualización
-                        const lastUpdate = document.getElementById('last-update');
-                        if (lastUpdate) {
-                            lastUpdate.textContent = new Date().toLocaleTimeString();
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error al actualizar métricas:', error);
-                })
-                .finally(() => {
-                    // Restaurar botón de actualización
-                    const refreshBtn = document.getElementById('refresh-btn');
-                    if (refreshBtn) {
-                        refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
-                    }
-                });
-        } catch (error) {
-            console.error('Error en la función updateMetrics:', error);
-            const refreshBtn = document.getElementById('refresh-btn');
-            if (refreshBtn) {
-                refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
-            }
-        }
-    }
-    
-    // Función para actualizar un gráfico de VM específico
-    function updateVmChart(vm) {
-        fetch(/api/vms/${vm.node}/${vm.vmid}/metrics/)
-            .then(response => response.json())
-            .then(vmData => {
-                if (vmData.success && vmCharts[vm.vmid]) {
-                    const chart = vmCharts[vm.vmid];
-                    const history = vmData.data.history;
-                    
-                    // Si hay datos históricos, actualizar el gráfico
-                    if (history && history.cpu && history.cpu.length > 0) {
-                        // Usar los últimos 10 puntos o menos si no hay suficientes
-                        const points = Math.min(history.cpu.length, 10);
-                        chart.data.datasets[0].data = history.cpu.slice(-points);
-                        chart.data.datasets[1].data = history.mem.slice(-points);
-                        
-                        // Actualizar etiquetas de tiempo si hay timestamps
-                        if (history.timestamps && history.timestamps.length >= points) {
-                            const timeLabels = history.timestamps.slice(-points).map(ts => {
-                                const date = new Date(ts * 1000);
-                                return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                            });
-                            chart.data.labels = timeLabels;
-                        }
-                    } else {
-                        // Si no hay datos históricos, agregar el valor actual
-                        chart.data.datasets[0].data.shift();
-                        chart.data.datasets[0].data.push(vmData.data.cpu);
-                        
-                        chart.data.datasets[1].data.shift();
-                        chart.data.datasets[1].data.push(vmData.data.mem);
-                        
-                        // Actualizar etiqueta de tiempo
-                        const now = new Date();
-                        chart.data.labels.shift();
-                        chart.data.labels.push(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-                    }
-                    
-                    // Actualizar el gráfico
-                    chart.update();
-                }
-            })
-            .catch(error => {
-                console.error(Error al obtener métricas detalladas para VM ${vm.vmid}:, error);
-            });
-    }
-    
-    // Filtrado de máquinas virtuales
-    const filterButtons = document.querySelectorAll('.filter-btn');
-    const vmCards = document.querySelectorAll('.vm-card');
-    
-    filterButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            // Desactivar todos los botones
-            filterButtons.forEach(btn => btn.classList.remove('active'));
-            // Activar el botón actual
-            button.classList.add('active');
-            
-            const filter = button.getAttribute('data-filter');
-            
-            // Filtrar tarjetas
-            vmCards.forEach(card => {
-                const status = card.getAttribute('data-status');
-                const type = card.getAttribute('data-type');
-                
-                if (filter === 'all' || 
-                    (filter === 'running' && status === 'running') || 
-                    (filter === 'stopped' && status === 'stopped') || 
-                    (filter === type)) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
         });
-    });
-    
-    // Manejar acciones de VM con confirmación y retroalimentación
-    document.querySelectorAll('.vm-action-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            const action = this.getAttribute('data-action');
-            const url = this.getAttribute('href');
-            
-            // Pedir confirmación solo para acciones destructivas
-            if (action === 'stop' || action === 'restart') {
-                if (!confirm(¿Está seguro que desea ${action === 'stop' ? 'detener' : 'reiniciar'} esta máquina virtual?)) {
-                    return;
+        
+        // Guardar referencia
+        vmCharts[vmId] = chart;
+    } catch (error) {
+        console.error(`Error al inicializar el gráfico para VM ${vmId}:`, error);
+    }
+});
+
+// Función para actualizar los datos en tiempo real mediante API
+function updateMetrics() {
+    try {
+        // Mostrar indicador de carga
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.innerHTML = '<div class="spinner"></div> Actualizando...';
+        }
+        
+        fetch('/api/dashboard/metrics/')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error al obtener métricas');
                 }
-            }
-            
-            // Cambiar el botón a estado de carga
-            const originalContent = this.innerHTML;
-            this.innerHTML = '<div class="spinner"></div>';
-            this.disabled = true;
-            
-            // Realizar la acción
-            fetch(url, {
-                method: 'GET',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                return response.json();
             })
-            .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Mostrar mensaje de éxito y recargar después de un tiempo
-                    alert(Acción '${action}' iniciada correctamente);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 3000);
-                } else {
-                    // Mostrar error
-                    alert(Error: ${data.message});
-                    this.innerHTML = originalContent;
-                    this.disabled = false;
+                    // Actualizar estadísticas de VMs
+                    data.data.vms.forEach(vm => {
+                        const vmCard = document.querySelector(`.vm-card[data-vmid="${vm.vmid}"]`);
+                        if (!vmCard) return;
+                        
+                        // Solo actualizar VMs en ejecución
+                        if (vm.status === 'running') {
+                            // Actualizar valores de CPU
+                            const cpuValue = vmCard.querySelector('.cpu-stat .vm-stat-value');
+                            const cpuBar = vmCard.querySelector('.cpu-stat .progress-bar');
+                            if (cpuValue) cpuValue.textContent = vm.cpu.toFixed(1) + '%';
+                            if (cpuBar) cpuBar.style.width = vm.cpu.toFixed(1) + '%';
+                            
+                            // Actualizar valores de RAM
+                            const memValue = vmCard.querySelector('.mem-stat .vm-stat-value');
+                            const memBar = vmCard.querySelector('.mem-stat .progress-bar');
+                            const memDetail = vmCard.querySelector('.mem-stat .mem-detail');
+                            if (memValue) memValue.textContent = vm.mem.toFixed(1) + '%';
+                            if (memBar) memBar.style.width = vm.mem.toFixed(1) + '%';
+                            if (memDetail) memDetail.textContent = `${vm.mem_used}/${vm.mem_total}MB`;
+                            
+                            // Actualizar valores de disco
+                            const diskRead = vmCard.querySelector('.disk-stats .disk-read');
+                            const diskWrite = vmCard.querySelector('.disk-stats .disk-write');
+                            const diskUsage = vmCard.querySelector('.disk-stats .disk-usage');
+                            if (diskRead) diskRead.textContent = `R: ${vm.disk_read.toFixed(1)}MB/s`;
+                            if (diskWrite) diskWrite.textContent = `W: ${vm.disk_write.toFixed(1)}MB/s`;
+                            if (diskUsage) diskUsage.textContent = `${vm.disk_used}/${vm.disk_total}GB`;
+                            
+                            // Actualizar valores de red
+                            const netIn = vmCard.querySelector('.net-stats .net-in');
+                            const netOut = vmCard.querySelector('.net-stats .net-out');
+                            if (netIn) netIn.textContent = `↓ ${vm.net_in.toFixed(1)}Mbps`;
+                            if (netOut) netOut.textContent = `↑ ${vm.net_out.toFixed(1)}Mbps`;
+                            
+                            // Actualizar gráficos si existen
+                            if (vmCharts[vm.vmid]) {
+                                updateVmChart(vm);
+                            }
+                        }
+                    });
+                    
+                    // Actualizar la hora de última actualización
+                    const lastUpdate = document.getElementById('last-update');
+                    if (lastUpdate) {
+                        lastUpdate.textContent = new Date().toLocaleTimeString();
+                    }
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('Ha ocurrido un error al procesar la solicitud');
-                this.innerHTML = originalContent;
-                this.disabled = false;
+                console.error('Error al actualizar métricas:', error);
+            })
+            .finally(() => {
+                // Restaurar botón de actualización
+                const refreshBtn = document.getElementById('refresh-btn');
+                if (refreshBtn) {
+                    refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
+                }
             });
+    } catch (error) {
+        console.error('Error en la función updateMetrics:', error);
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Actualizar';
+        }
+    }
+}
+
+// Función para actualizar un gráfico de VM específico
+function updateVmChart(vm) {
+    fetch(`/api/vms/${vm.node}/${vm.vmid}/metrics/`)
+        .then(response => response.json())
+        .then(vmData => {
+            if (vmData.success && vmCharts[vm.vmid]) {
+                const chart = vmCharts[vm.vmid];
+                const history = vmData.data.history;
+                
+                // Si hay datos históricos, actualizar el gráfico
+                if (history && history.cpu && history.cpu.length > 0) {
+                    // Usar los últimos 10 puntos o menos si no hay suficientes
+                    const points = Math.min(history.cpu.length, 10);
+                    chart.data.datasets[0].data = history.cpu.slice(-points);
+                    chart.data.datasets[1].data = history.mem.slice(-points);
+                    
+                    // Actualizar etiquetas de tiempo si hay timestamps
+                    if (history.timestamps && history.timestamps.length >= points) {
+                        const timeLabels = history.timestamps.slice(-points).map(ts => {
+                            const date = new Date(ts * 1000);
+                            return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        });
+                        chart.data.labels = timeLabels;
+                    }
+                } else {
+                    // Si no hay datos históricos, agregar el valor actual
+                    chart.data.datasets[0].data.shift();
+                    chart.data.datasets[0].data.push(vmData.data.cpu);
+                    
+                    chart.data.datasets[1].data.shift();
+                    chart.data.datasets[1].data.push(vmData.data.mem);
+                    
+                    // Actualizar etiqueta de tiempo
+                    const now = new Date();
+                    chart.data.labels.shift();
+                    chart.data.labels.push(now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+                }
+                
+                // Actualizar el gráfico
+                chart.update();
+            }
+        })
+        .catch(error => {
+            console.error(`Error al obtener métricas detalladas para VM ${vm.vmid}:`, error);
+        });
+}
+
+// Filtrado de máquinas virtuales
+const filterButtons = document.querySelectorAll('.filter-btn');
+const vmCards = document.querySelectorAll('.vm-card');
+
+filterButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        // Desactivar todos los botones
+        filterButtons.forEach(btn => btn.classList.remove('active'));
+        // Activar el botón actual
+        button.classList.add('active');
+        
+        const filter = button.getAttribute('data-filter');
+        
+        // Filtrar tarjetas
+        vmCards.forEach(card => {
+            const status = card.getAttribute('data-status');
+            const type = card.getAttribute('data-type');
+            
+            if (filter === 'all' || 
+                (filter === 'running' && status === 'running') || 
+                (filter === 'stopped' && status === 'stopped') || 
+                (filter === type)) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
         });
     });
-    
-    // Botón de actualización manual
-    const refreshBtn = document.getElementById('refresh-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', function() {
-            updateMetrics();
+});
+
+// Manejar acciones de VM con confirmación y retroalimentación
+document.querySelectorAll('.vm-action-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        const action = this.getAttribute('data-action');
+        const url = this.getAttribute('href');
+        
+        // Pedir confirmación solo para acciones destructivas
+        if (action === 'stop' || action === 'restart') {
+            if (!confirm(`¿Está seguro que desea ${action === 'stop' ? 'detener' : 'reiniciar'} esta máquina virtual?`)) {
+                return;
+            }
+        }
+        
+        // Cambiar el botón a estado de carga
+        const originalContent = this.innerHTML;
+        this.innerHTML = '<div class="spinner"></div>';
+        this.disabled = true;
+        
+        // Realizar la acción
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Mostrar mensaje de éxito y recargar después de un tiempo
+                alert(`Acción '${action}' iniciada correctamente`);
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            } else {
+                // Mostrar error
+                alert(`Error: ${data.message}`);
+                this.innerHTML = originalContent;
+                this.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ha ocurrido un error al procesar la solicitud');
+            this.innerHTML = originalContent;
+            this.disabled = false;
         });
-    }
-    
-    // Actualización periódica
-    setInterval(updateMetrics, 10000);
-    
-    // Primera actualización al cargar
-    setTimeout(updateMetrics, 1000);
-    
-    // Recargar la página cada 5 minutos para evitar problemas con sesiones
-    setTimeout(function() {
-        location.reload();
-    }, 300000);
+    });
+});
+
+// Botón de actualización manual
+const refreshBtn = document.getElementById('refresh-btn');
+if (refreshBtn) {
+    refreshBtn.addEventListener('click', function() {
+        updateMetrics();
+    });
+}
+
+// Actualización periódica
+setInterval(updateMetrics, 10000);
+
+// Primera actualización al cargar
+setTimeout(updateMetrics, 1000);
+
+// Recargar la página cada 5 minutos para evitar problemas con sesiones
+setTimeout(function() {
+    location.reload();
+}, 300000);
 </script>
 {% endblock %}
