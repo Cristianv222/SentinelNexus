@@ -1872,6 +1872,21 @@ def api_vm_metrics(request, node_name, vmid):
         # Actualizar datos en la base de datos
         try:
             db_node = Nodo.objects.get(nombre=node_name)
+            
+            # Obtener o crear un sistema operativo predeterminado
+            try:
+                sistema_op = SistemaOperativo.objects.get(nombre='Unknown', version='Unknown')
+            except SistemaOperativo.DoesNotExist:
+                # Si no existe, crearlo
+                sistema_op = SistemaOperativo.objects.create(
+                    nombre='Unknown',
+                    version='Unknown',
+                    tipo='Unknown',
+                    arquitectura='x86_64',
+                    activo=True
+                )
+            
+            # Crear o actualizar la VM incluyendo el sistema operativo
             db_vm, created = MaquinaVirtual.objects.get_or_create(
                 nodo=db_node,
                 vmid=vmid,
@@ -1880,13 +1895,20 @@ def api_vm_metrics(request, node_name, vmid):
                     'hostname': vm_status.get('name', f"VM-{vmid}"),
                     'vm_type': vm_type,
                     'estado': vm_status.get('status', 'unknown'),
+                    'sistema_operativo': sistema_op,  # Añadir sistema operativo aquí
                     'is_monitored': True,
                     'last_checked': datetime.now()
                 }
             )
+            
             if not created:
                 db_vm.estado = vm_status.get('status', 'unknown')
                 db_vm.last_checked = datetime.now()
+                
+                # Si la VM existe pero no tiene sistema operativo, asignarlo
+                if db_vm.sistema_operativo is None:
+                    db_vm.sistema_operativo = sistema_op
+                    
                 db_vm.save()
                 
         except Exception as db_error:

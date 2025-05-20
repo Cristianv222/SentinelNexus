@@ -50,9 +50,23 @@ class ProxmoxServer(models.Model):
     class Meta:
         verbose_name = "Servidor Proxmox"
         verbose_name_plural = "Servidores Proxmox"
+    
+    def get_or_create_node(self, node_name):
+        """Obtiene o crea un nodo asociado a este servidor Proxmox"""
+        from django.utils import timezone
+        node, created = Nodo.objects.get_or_create(
+            proxmox_server=self,
+            nombre=node_name,
+            defaults={
+                'hostname': node_name,
+                'ip_address': '0.0.0.0',  # Se debe actualizar posteriormente
+                'estado': 'activo',
+                'fecha_creacion': timezone.now()
+            }
+        )
+        return node
 
 # Nodo en la infraestructura (relacionado con ProxmoxServer)
-# Manteniendo solo la versión más completa
 class Nodo(models.Model):
     STATUS_CHOICES = [
         ('activo', 'Activo'),
@@ -71,14 +85,36 @@ class Nodo(models.Model):
     ultimo_mantenimiento = models.DateTimeField(null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
+    # Nuevo campo
+    proxmox_node_id = models.CharField(max_length=100, null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'age_nodo'
         verbose_name = 'Nodo'
         verbose_name_plural = 'Nodos'
+        # Agregar índice para buscar nodos por nombre
+        indexes = [
+            models.Index(fields=['nombre']),
+        ]
 
     def __str__(self):
         return self.nombre
+    
+    @classmethod
+    def get_by_proxmox_name(cls, server_name, node_name):
+        """
+        Obtiene un nodo utilizando el nombre del servidor Proxmox y el nombre del nodo.
+        Si no existe, lo crea automáticamente.
+        """
+        try:
+            # Primero intentamos encontrar el servidor Proxmox
+            proxmox_server = ProxmoxServer.objects.get(name=server_name)
+            
+            # Luego buscamos el nodo o lo creamos si no existe
+            return proxmox_server.get_or_create_node(node_name)
+        except ProxmoxServer.DoesNotExist:
+            # Si el servidor Proxmox no existe, creamos un error más descriptivo
+            raise ValueError(f"El servidor Proxmox '{server_name}' no existe. Créalo primero.")
 
 class RecursoFisico(models.Model):
     STATUS_CHOICES = [
@@ -110,7 +146,6 @@ class RecursoFisico(models.Model):
         return self.nombre
 
 # Máquina Virtual integrada con VirtualMachine
-# Manteniendo solo la versión más completa
 class MaquinaVirtual(models.Model):
     STATUS_CHOICES = [
         ('running', 'En ejecución'),
@@ -145,6 +180,43 @@ class MaquinaVirtual(models.Model):
 
     def __str__(self):
         return f"{self.nombre} (ID: {self.vmid})"
+    
+    @classmethod
+    def get_or_create_from_proxmox(cls, server_name, node_name, vmid, **kwargs):
+        """
+        Obtiene o crea una máquina virtual a partir de datos de Proxmox.
+        Asegura que el nodo exista primero.
+        """
+        # Obtener o crear el nodo
+        nodo = Nodo.get_by_proxmox_name(server_name, node_name)
+        
+        # Obtener o crear la máquina virtual
+        try:
+            vm = cls.objects.get(nodo=nodo, vmid=vmid)
+            # Actualizar campos si se proporcionan en kwargs
+            update_fields = []
+            for key, value in kwargs.items():
+                if hasattr(vm, key) and getattr(vm, key) != value:
+                    setattr(vm, key, value)
+                    update_fields.append(key)
+            
+            if update_fields:
+                vm.save(update_fields=update_fields)
+            
+            return vm, False
+        except cls.DoesNotExist:
+            # Crear sistema operativo por defecto si es necesario
+            if 'sistema_operativo' not in kwargs:
+                sistema_operativo, _ = SistemaOperativo.objects.get_or_create(
+                    nombre='Unknown',
+                    version='Unknown',
+                    tipo='Unknown',
+                    arquitectura='x86_64',
+                    defaults={'activo': True}
+                )
+                kwargs['sistema_operativo'] = sistema_operativo
+            
+            return cls.objects.create(nodo=nodo, vmid=vmid, **kwargs), True
 
 class AsignacionRecursosInicial(models.Model):
     asignacion_id = models.AutoField(primary_key=True)
@@ -292,7 +364,7 @@ class EstadisticaRecursos(models.Model):
     def __str__(self):
         return f"Estadística {self.estadistica_id} - {self.tipo_recurso} ({self.tipo_entidad})"
     
-    # Modelo existente (ajusta según tus necesidades)
+# Modelo Server modificado para integrarse con ProxmoxServer
 class Server(models.Model):
     name = models.CharField(max_length=100)
     host = models.CharField(max_length=255)
@@ -301,8 +373,36 @@ class Server(models.Model):
     password = models.CharField(max_length=100)
     active = models.BooleanField(default=True)
     
+    # Nuevo campo para relacionar con ProxmoxServer
+    proxmox_server = models.ForeignKey(ProxmoxServer, on_delete=models.SET_NULL, null=True, blank=True, related_name='legacy_servers')
+    
     def __str__(self):
         return self.name
+    
+    def save(self, *args, **kwargs):
+        """Asegura que exista el servidor Proxmox asociado"""
+        super().save(*args, **kwargs)
+        if not self.proxmox_server and self.active:
+            # Crear automáticamente el servidor Proxmox si no existe
+            proxmox_server, created = ProxmoxServer.objects.get_or_create(
+                name=self.name,
+                defaults={
+                    'hostname': self.host,
+                    'username': self.username,
+                    'password': self.password,
+                    'is_active': self.active
+                }
+            )
+            if created or proxmox_server.hostname != self.host:
+                proxmox_server.hostname = self.host
+                proxmox_server.username = self.username
+                proxmox_server.password = self.password
+                proxmox_server.is_active = self.active
+                proxmox_server.save()
+            
+            self.proxmox_server = proxmox_server
+            # Guardar de nuevo sin llamar a este método para evitar recursividad
+            super().save(update_fields=['proxmox_server'])
 
 # Modelo para métricas de servidores Proxmox
 class ServerMetric(models.Model):
