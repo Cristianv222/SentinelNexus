@@ -49,11 +49,4 @@ urlpatterns = [
     path('api/vms/<str:node_name>/<int:vmid>/metrics/', views.api_vm_metrics, name='api_vm_metrics'),
     path('api/dashboard/metrics/', views.api_dashboard_metrics, name='api_dashboard_metrics'),
     path('api/metrics/', views.api_metrics, name='api_metrics'),
-    
-    # Dashboard de Grafana
-    path('grafana/', views.grafana_dashboard, name='grafana_dashboard'),
-    
-    # Proxy Grafana - debe estar al final para evitar conflictos con otras rutas
-    path('grafana-proxy/', views.grafana_proxy, name='grafana_proxy_base'),
-    path('grafana-proxy/<path:path>', views.grafana_proxy, name='grafana_proxy'),
 ]
