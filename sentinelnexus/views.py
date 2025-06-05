@@ -22,6 +22,7 @@ import requests
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
+from utils.proxmox_manager import proxmox_manager
 
 logger = logging.getLogger(__name__)
 
@@ -2351,3 +2352,932 @@ def vm_console(request, node_name, vmid, vm_type):
         messages.error(request, f"Error al conectar con la consola: {str(e)}")
         return redirect('vm_detail_with_type', node_name=node_name, vmid=vmid, vm_type=vm_type)
     
+
+
+
+
+    logger = logging.getLogger(__name__)
+
+@login_required
+def nodes_overview(request):
+    """
+    Vista principal del dashboard que muestra todos los nodos disponibles
+    """
+    try:
+        active_nodes = proxmox_manager.get_all_nodes()
+        nodes_info = []
+        
+        for node_key, node_config in active_nodes.items():
+            try:
+                # Conectar a Proxmox para obtener información del nodo
+                proxmox = proxmox_manager.get_connection(node_key)
+                
+                # Obtener información básica del nodo
+                nodes_data = proxmox.nodes.get()
+                total_vms = 0
+                running_vms = 0
+                
+                for node in nodes_data:
+                    node_name = node['node']
+                    
+                    # Obtener VMs QEMU
+                    try:
+                        qemu_vms = proxmox.nodes(node_name).qemu.get()
+                        total_vms += len(qemu_vms)
+                        running_vms += len([vm for vm in qemu_vms if vm['status'] == 'running'])
+                    except Exception as e:
+                        logger.warning(f"Error obteniendo VMs QEMU de {node_name}: {str(e)}")
+                    
+                    # Obtener contenedores LXC
+                    try:
+                        lxc_containers = proxmox.nodes(node_name).lxc.get()
+                        total_vms += len(lxc_containers)
+                        running_vms += len([c for c in lxc_containers if c['status'] == 'running'])
+                    except Exception as e:
+                        logger.warning(f"Error obteniendo LXC de {node_name}: {str(e)}")
+                
+                # Información del nodo principal
+                main_node = nodes_data[0] if nodes_data else {}
+                
+                node_info = {
+                    'key': node_key,
+                    'name': node_config.get('name', f'Nodo {node_key}'),
+                    'description': node_config.get('description', ''),
+                    'location': node_config.get('location', ''),
+                    'host': node_config['host'],
+                    'status': 'online',
+                    'total_vms': total_vms,
+                    'running_vms': running_vms,
+                    'cpu_usage': main_node.get('cpu', 0) * 100,
+                    'memory_usage': (main_node.get('mem', 0) / main_node.get('maxmem', 1)) * 100 if main_node.get('maxmem') else 0,
+                    'uptime': main_node.get('uptime', 0),
+                    'version': proxmox.version.get().get('version', 'N/A'),
+                    'node_count': len(nodes_data),
+                    'connection_url': proxmox_manager.get_connection_url(node_key)
+                }
+                
+            except Exception as e:
+                logger.error(f"Error conectando al nodo {node_key}: {str(e)}")
+                node_info = {
+                    'key': node_key,
+                    'name': node_config.get('name', f'Nodo {node_key}'),
+                    'description': node_config.get('description', ''),
+                    'location': node_config.get('location', ''),
+                    'host': node_config['host'],
+                    'status': 'offline',
+                    'error': str(e),
+                    'total_vms': 0,
+                    'running_vms': 0,
+                    'cpu_usage': 0,
+                    'memory_usage': 0,
+                    'uptime': 0,
+                    'version': 'N/A',
+                    'node_count': 0,
+                    'connection_url': None
+                }
+            
+            nodes_info.append(node_info)
+        
+        context = {
+            'nodes': nodes_info,
+            'total_nodes': len(nodes_info),
+            'online_nodes': len([n for n in nodes_info if n['status'] == 'online']),
+            'total_vms_all': sum([n['total_vms'] for n in nodes_info]),
+            'running_vms_all': sum([n['running_vms'] for n in nodes_info])
+        }
+        
+        return render(request, 'dashboard/nodes_overview.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error en dashboard de nodos: {str(e)}")
+        messages.error(request, f"Error al cargar el dashboard: {str(e)}")
+        return render(request, 'dashboard/nodes_overview.html', {
+            'nodes': [],
+            'error_message': str(e)
+        })
+
+@login_required
+def node_detail_new(request, node_key):
+    """
+    Vista detallada de un nodo específico con todas sus VMs y funcionalidades completas
+    """
+    try:
+        node_config = proxmox_manager.get_node_config(node_key)
+        
+        if not node_config:
+            messages.error(request, f"Nodo '{node_key}' no encontrado o no configurado")
+            return redirect('nodes_overview')
+        
+        # Conectar a Proxmox
+        proxmox = proxmox_manager.get_connection(node_key)
+        
+        # Obtener información de los nodos físicos en este servidor Proxmox
+        nodes_data = proxmox.nodes.get()
+        vms = []
+        
+        for node in nodes_data:
+            node_name = node['node']
+            
+            # Obtener VMs QEMU
+            try:
+                qemu_vms = proxmox.nodes(node_name).qemu.get()
+                for vm in qemu_vms:
+                    vm_info = {
+                        'vmid': vm['vmid'],
+                        'name': vm['name'],
+                        'status': vm['status'],
+                        'type': 'qemu',
+                        'node': node_name,
+                        'proxmox_node_key': node_key,  # Clave del nodo de configuración
+                        'cpu': vm.get('cpu', 0) * 100,
+                        'mem': (vm.get('mem', 0) / vm.get('maxmem', 1)) * 100 if vm.get('maxmem') else 0,
+                        'mem_used': round(vm.get('mem', 0) / (1024*1024), 2),  # MB
+                        'mem_total': round(vm.get('maxmem', 0) / (1024*1024), 2),  # MB
+                        'disk_used': round(vm.get('disk', 0) / (1024*1024*1024), 2),  # GB
+                        'disk_total': round(vm.get('maxdisk', 0) / (1024*1024*1024), 2),  # GB
+                        'net_in': vm.get('netin', 0) / 1000000,  # Mbps
+                        'net_out': vm.get('netout', 0) / 1000000,  # Mbps
+                        'uptime': vm.get('uptime', 0),
+                        'template': vm.get('template', 0)
+                    }
+                    vms.append(vm_info)
+            except Exception as e:
+                logger.warning(f"Error obteniendo VMs QEMU de {node_name}: {str(e)}")
+            
+            # Obtener contenedores LXC
+            try:
+                lxc_containers = proxmox.nodes(node_name).lxc.get()
+                for container in lxc_containers:
+                    container_info = {
+                        'vmid': container['vmid'],
+                        'name': container['name'],
+                        'status': container['status'],
+                        'type': 'lxc',
+                        'node': node_name,
+                        'proxmox_node_key': node_key,
+                        'cpu': container.get('cpu', 0) * 100,
+                        'mem': (container.get('mem', 0) / container.get('maxmem', 1)) * 100 if container.get('maxmem') else 0,
+                        'mem_used': round(container.get('mem', 0) / (1024*1024), 2),
+                        'mem_total': round(container.get('maxmem', 0) / (1024*1024), 2),
+                        'disk_used': round(container.get('disk', 0) / (1024*1024*1024), 2),
+                        'disk_total': round(container.get('maxdisk', 0) / (1024*1024*1024), 2),
+                        'net_in': container.get('netin', 0) / 1000000,
+                        'net_out': container.get('netout', 0) / 1000000,
+                        'uptime': container.get('uptime', 0),
+                        'template': container.get('template', 0)
+                    }
+                    vms.append(container_info)
+            except Exception as e:
+                logger.warning(f"Error obteniendo LXC de {node_name}: {str(e)}")
+        
+        # Ordenar VMs por nombre
+        vms.sort(key=lambda x: x['name'])
+        
+        # Estadísticas del nodo
+        running_vms = len([vm for vm in vms if vm['status'] == 'running'])
+        
+        context = {
+            'node_key': node_key,
+            'node_name': node_config.get('name', f'Nodo {node_key}'),
+            'node_description': node_config.get('description', ''),
+            'node_location': node_config.get('location', ''),
+            'node_host': node_config['host'],
+            'nodes': nodes_data,
+            'vms': vms,
+            'running_vms': running_vms,
+            'total_vms': len(vms),
+            'qemu_vms': len([vm for vm in vms if vm['type'] == 'qemu']),
+            'lxc_containers': len([vm for vm in vms if vm['type'] == 'lxc']),
+            'templates': len([vm for vm in vms if vm.get('template', 0) == 1])
+        }
+        
+        return render(request, 'dashboard/node_detail_new.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error al cargar nodo {node_key}: {str(e)}")
+        messages.error(request, f"Error al conectar con el nodo: {str(e)}")
+        return redirect('nodes_overview')
+
+@login_required
+def vm_detail_new(request, node_key, node_name, vmid, vm_type):
+    """
+    Vista detallada de una VM específica con funcionalidades completas
+    """
+    try:
+        # Obtener conexión al nodo
+        proxmox = proxmox_manager.get_connection(node_key)
+        
+        # Obtener estado actual
+        vm_status = {}
+        vm_config = {}
+        try:
+            if vm_type == 'qemu':
+                vm_status = proxmox.nodes(node_name).qemu(vmid).status.current.get()
+                vm_config = proxmox.nodes(node_name).qemu(vmid).config.get()
+            else:  # 'lxc'
+                vm_status = proxmox.nodes(node_name).lxc(vmid).status.current.get()
+                vm_config = proxmox.nodes(node_name).lxc(vmid).config.get()
+                
+            # Procesar información adicional
+            vm_status['type'] = vm_type
+            vm_status['name'] = vm_status.get('name', f"VM-{vmid}")
+            vm_status['node_key'] = node_key
+            
+            # Calcular uso de recursos en porcentaje
+            if 'maxmem' in vm_status and vm_status['maxmem'] > 0:
+                vm_status['mem_percent'] = round((vm_status.get('mem', 0) / vm_status['maxmem']) * 100, 1)
+            else:
+                vm_status['mem_percent'] = 0
+                
+            vm_status['cpu_percent'] = round(vm_status.get('cpu', 0) * 100, 1)
+            
+            # Información de red
+            vm_status['network_interfaces'] = []
+            for key, value in vm_config.items():
+                if key.startswith('net') and isinstance(value, str):
+                    interface_info = {
+                        'interface': key,
+                        'config': value,
+                        'model': value.split(',')[0] if ',' in value else value
+                    }
+                    vm_status['network_interfaces'].append(interface_info)
+            
+        except Exception as e:
+            messages.error(request, f"Error al obtener detalles de la VM: {str(e)}")
+            return redirect('node_detail_new', node_key=node_key)
+        
+        # Obtener historial de tareas
+        tasks = []
+        try:
+            tasks = proxmox.nodes(node_name).tasks.get(
+                vmid=vmid,
+                limit=20,
+                start=0
+            )
+            
+            # Procesar las tareas
+            for task in tasks:
+                if 'starttime' in task:
+                    try:
+                        task['starttime_readable'] = datetime.fromtimestamp(task['starttime']).strftime('%d/%m/%Y %H:%M:%S')
+                    except:
+                        task['starttime_readable'] = 'Desconocido'
+                
+                if 'endtime' in task and 'starttime' in task:
+                    try:
+                        duration = task['endtime'] - task['starttime']
+                        task['duration'] = f"{duration:.2f}s"
+                    except:
+                        task['duration'] = 'Desconocido'
+                
+                task['description'] = get_task_description(task.get('type', ''), vm_type)
+        except Exception as e:
+            logger.warning(f"Error al obtener historial de tareas: {str(e)}")
+        
+        # URLs para acciones
+        action_urls = {
+            'start': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/action/start/",
+            'stop': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/action/stop/",
+            'shutdown': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/action/shutdown/",
+            'restart': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/action/restart/",
+            'suspend': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/action/suspend/" if vm_type == 'qemu' else None,
+            'resume': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/action/resume/" if vm_type == 'qemu' else None,
+            'clone': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/clone/",
+            'migrate': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/migrate/",
+            'backup': f"/nodes/{node_key}/vms/{node_name}/{vmid}/type/{vm_type}/backup/",
+        }
+        
+        # Información de snapshots
+        snapshots = []
+        try:
+            if vm_type == 'qemu':
+                snapshots = proxmox.nodes(node_name).qemu(vmid).snapshot.get()
+            else:
+                snapshots = proxmox.nodes(node_name).lxc(vmid).snapshot.get()
+        except Exception as e:
+            logger.warning(f"Error al obtener snapshots: {str(e)}")
+        
+        context = {
+            'node_key': node_key,
+            'node_name': node_name,
+            'vmid': vmid,
+            'vm_type': vm_type,
+            'vm_status': vm_status,
+            'vm_config': vm_config,
+            'tasks': tasks,
+            'snapshots': snapshots,
+            'action_urls': action_urls
+        }
+        
+        return render(request, 'dashboard/vm_detail_new.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error al obtener detalles de la VM {vmid}: {str(e)}")
+        messages.error(request, f"Error al obtener detalles de la VM: {str(e)}")
+        return redirect('node_detail_new', node_key=node_key)
+
+@login_required
+def vm_action_new(request, node_key, node_name, vmid, vm_type, action):
+    """
+    Realiza acciones en VMs (start, stop, restart, etc.)
+    """
+    try:
+        proxmox = proxmox_manager.get_connection(node_key)
+        
+        result = None
+        try:
+            if vm_type == 'qemu':
+                if action == 'start':
+                    result = proxmox.nodes(node_name).qemu(vmid).status.start.post()
+                elif action == 'stop':
+                    result = proxmox.nodes(node_name).qemu(vmid).status.stop.post()
+                elif action == 'shutdown':
+                    result = proxmox.nodes(node_name).qemu(vmid).status.shutdown.post()
+                elif action == 'restart':
+                    result = proxmox.nodes(node_name).qemu(vmid).status.reset.post()
+                elif action == 'suspend':
+                    result = proxmox.nodes(node_name).qemu(vmid).status.suspend.post()
+                elif action == 'resume':
+                    result = proxmox.nodes(node_name).qemu(vmid).status.resume.post()
+            else:  # 'lxc'
+                if action == 'start':
+                    result = proxmox.nodes(node_name).lxc(vmid).status.start.post()
+                elif action == 'stop':
+                    result = proxmox.nodes(node_name).lxc(vmid).status.stop.post()
+                elif action == 'shutdown':
+                    result = proxmox.nodes(node_name).lxc(vmid).status.shutdown.post()
+                elif action == 'restart':
+                    result = proxmox.nodes(node_name).lxc(vmid).status.reboot.post()
+                    
+        except Exception as action_error:
+            messages.error(request, f"Error al ejecutar la acción '{action}': {str(action_error)}")
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'message': f"Error al ejecutar '{action}': {str(action_error)}"
+                })
+            
+            return redirect('vm_detail_new', node_key=node_key, node_name=node_name, vmid=vmid, vm_type=vm_type)
+        
+        if result is None:
+            messages.error(request, f"Acción '{action}' no soportada para {vm_type}")
+        else:
+            messages.success(request, f"Acción '{action}' iniciada correctamente. UPID: {result}")
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': result is not None,
+                'message': f"Acción '{action}' iniciada correctamente" if result else f"Acción '{action}' no soportada",
+                'upid': result
+            })
+        
+        return redirect('vm_detail_new', node_key=node_key, node_name=node_name, vmid=vmid, vm_type=vm_type)
+    
+    except Exception as e:
+        error_message = f"Error al ejecutar '{action}': {str(e)}"
+        messages.error(request, error_message)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'message': error_message
+            })
+        
+        return redirect('vm_detail_new', node_key=node_key, node_name=node_name, vmid=vmid, vm_type=vm_type)
+
+@login_required
+@csrf_exempt
+def vm_create(request, node_key, node_name):
+    """
+    Vista para crear una nueva VM
+    """
+    if request.method == 'POST':
+        try:
+            proxmox = proxmox_manager.get_connection(node_key)
+            
+            # Obtener datos del formulario
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            
+            vm_type = data.get('vm_type', 'qemu')
+            vmid = int(data.get('vmid'))
+            name = data.get('name')
+            
+            if vm_type == 'qemu':
+                # Crear VM QEMU/KVM
+                config = {
+                    'vmid': vmid,
+                    'name': name,
+                    'memory': int(data.get('memory', 512)),
+                    'cores': int(data.get('cores', 1)),
+                    'sockets': int(data.get('sockets', 1)),
+                    'net0': f"virtio,bridge={data.get('bridge', 'vmbr0')}",
+                    'scsi0': f"{data.get('storage', 'local-lvm')}:{data.get('disk_size', 32)}",
+                    'scsihw': 'virtio-scsi-pci',
+                    'boot': 'cdn',
+                    'ostype': data.get('ostype', 'l26')
+                }
+                
+                # Agregar ISO si se especifica
+                if data.get('iso'):
+                    config['cdrom'] = f"{data.get('storage', 'local')}:iso/{data.get('iso')}"
+                
+                result = proxmox.nodes(node_name).qemu.post(**config)
+                
+            else:  # lxc
+                # Crear contenedor LXC
+                config = {
+                    'vmid': vmid,
+                    'hostname': name,
+                    'memory': int(data.get('memory', 512)),
+                    'cores': int(data.get('cores', 1)),
+                    'net0': f"name=eth0,bridge={data.get('bridge', 'vmbr0')},ip=dhcp",
+                    'rootfs': f"{data.get('storage', 'local-lvm')}:{data.get('disk_size', 8)}",
+                    'ostemplate': f"{data.get('storage', 'local')}:vztmpl/{data.get('template')}"
+                }
+                
+                result = proxmox.nodes(node_name).lxc.post(**config)
+            
+            messages.success(request, f"VM/Contenedor '{name}' creado correctamente. UPID: {result}")
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': True,
+                    'message': f"VM '{name}' creada correctamente",
+                    'upid': result,
+                    'vmid': vmid
+                })
+            
+            return redirect('node_detail_new', node_key=node_key)
+            
+        except Exception as e:
+            error_message = f"Error al crear VM: {str(e)}"
+            messages.error(request, error_message)
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'message': error_message
+                })
+            
+            return redirect('node_detail_new', node_key=node_key)
+    
+    # GET request - mostrar formulario
+    try:
+        proxmox = proxmox_manager.get_connection(node_key)
+        
+        # Obtener storages disponibles
+        storages = proxmox.nodes(node_name).storage.get()
+        
+        # Obtener próximo VMID disponible
+        next_vmid = proxmox.cluster.nextid.get()
+        
+        # Obtener templates/ISOs disponibles
+        isos = []
+        templates = []
+        
+        for storage in storages:
+            storage_name = storage['storage']
+            try:
+                content = proxmox.nodes(node_name).storage(storage_name).content.get()
+                for item in content:
+                    if item.get('content') == 'iso':
+                        isos.append({
+                            'name': item['volid'].split('/')[-1],
+                            'volid': item['volid']
+                        })
+                    elif item.get('content') == 'vztmpl':
+                        templates.append({
+                            'name': item['volid'].split('/')[-1],
+                            'volid': item['volid']
+                        })
+            except Exception as e:
+                logger.warning(f"Error obteniendo contenido de storage {storage_name}: {str(e)}")
+        
+        context = {
+            'node_key': node_key,
+            'node_name': node_name,
+            'storages': storages,
+            'next_vmid': next_vmid,
+            'isos': isos,
+            'templates': templates
+        }
+        
+        return render(request, 'dashboard/vm_create.html', context)
+        
+    except Exception as e:
+        messages.error(request, f"Error al cargar formulario de creación: {str(e)}")
+        return redirect('node_detail_new', node_key=node_key)
+
+def get_task_description(task_type, vm_type):
+    """
+    Función auxiliar para descripciones de tareas
+    """
+    descriptions = {
+        'vncproxy': 'Conexión a consola VNC',
+        'qmstart': 'Iniciar VM',
+        'qmstop': 'Detener VM',
+        'qmshutdown': 'Apagar VM',
+        'qmreset': 'Reiniciar VM',
+        'qmsuspend': 'Suspender VM',
+        'qmresume': 'Reanudar VM',
+        'qmmigrate': 'Migrar VM',
+        'qmclone': 'Clonar VM',
+        'qmcreate': 'Crear VM',
+        'qmdelete': 'Eliminar VM',
+        'qmreboot': 'Reiniciar VM',
+        'vzstart': 'Iniciar Contenedor',
+        'vzstop': 'Detener Contenedor',
+        'vzshutdown': 'Apagar Contenedor',
+        'vzreboot': 'Reiniciar Contenedor',
+        'vzmigrate': 'Migrar Contenedor',
+        'vzclone': 'Clonar Contenedor',
+        'vzcreate': 'Crear Contenedor',
+        'vzdelete': 'Eliminar Contenedor'
+    }
+    
+    return descriptions.get(task_type, f'Tarea {task_type}')
+
+
+
+
+# Agregar estas APIs a tu archivo views.py existente
+
+@login_required
+def api_get_nodes_multi(request):
+    """
+    API endpoint para obtener información de todos los nodos multi-configuración
+    """
+    try:
+        active_nodes = proxmox_manager.get_all_nodes()
+        nodes_info = []
+        
+        for node_key, node_config in active_nodes.items():
+            try:
+                proxmox = proxmox_manager.get_connection(node_key)
+                nodes_data = proxmox.nodes.get()
+                
+                total_vms = 0
+                running_vms = 0
+                
+                for node in nodes_data:
+                    node_name = node['node']
+                    try:
+                        qemu_vms = proxmox.nodes(node_name).qemu.get()
+                        total_vms += len(qemu_vms)
+                        running_vms += len([vm for vm in qemu_vms if vm['status'] == 'running'])
+                        
+                        lxc_containers = proxmox.nodes(node_name).lxc.get()
+                        total_vms += len(lxc_containers)
+                        running_vms += len([c for c in lxc_containers if c['status'] == 'running'])
+                    except Exception as e:
+                        logger.warning(f"Error obteniendo VMs de {node_name}: {str(e)}")
+                
+                main_node = nodes_data[0] if nodes_data else {}
+                
+                node_info = {
+                    'key': node_key,
+                    'name': node_config.get('name', f'Nodo {node_key}'),
+                    'host': node_config['host'],
+                    'status': 'online',
+                    'total_vms': total_vms,
+                    'running_vms': running_vms,
+                    'cpu_usage': main_node.get('cpu', 0) * 100,
+                    'memory_usage': (main_node.get('mem', 0) / main_node.get('maxmem', 1)) * 100 if main_node.get('maxmem') else 0,
+                    'uptime': main_node.get('uptime', 0),
+                    'version': proxmox.version.get().get('version', 'N/A'),
+                    'node_count': len(nodes_data)
+                }
+                
+            except Exception as e:
+                logger.error(f"Error conectando al nodo {node_key}: {str(e)}")
+                node_info = {
+                    'key': node_key,
+                    'name': node_config.get('name', f'Nodo {node_key}'),
+                    'host': node_config['host'],
+                    'status': 'offline',
+                    'error': str(e),
+                    'total_vms': 0,
+                    'running_vms': 0,
+                    'cpu_usage': 0,
+                    'memory_usage': 0,
+                    'uptime': 0,
+                    'version': 'N/A',
+                    'node_count': 0
+                }
+            
+            nodes_info.append(node_info)
+        
+        return JsonResponse({
+            'success': True,
+            'data': nodes_info,
+            'summary': {
+                'total_nodes': len(nodes_info),
+                'online_nodes': len([n for n in nodes_info if n['status'] == 'online']),
+                'total_vms': sum([n['total_vms'] for n in nodes_info]),
+                'running_vms': sum([n['running_vms'] for n in nodes_info])
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+@login_required
+def api_get_vms_by_node(request, node_key):
+    """
+    API endpoint para obtener VMs de un nodo específico
+    """
+    try:
+        proxmox = proxmox_manager.get_connection(node_key)
+        nodes_data = proxmox.nodes.get()
+        vms = []
+        
+        for node in nodes_data:
+            node_name = node['node']
+            
+            # Obtener VMs QEMU
+            try:
+                qemu_vms = proxmox.nodes(node_name).qemu.get()
+                for vm in qemu_vms:
+                    vm_info = {
+                        'vmid': vm['vmid'],
+                        'name': vm['name'],
+                        'status': vm['status'],
+                        'type': 'qemu',
+                        'node': node_name,
+                        'node_key': node_key,
+                        'cpu': vm.get('cpu', 0) * 100,
+                        'mem': (vm.get('mem', 0) / vm.get('maxmem', 1)) * 100 if vm.get('maxmem') else 0,
+                        'uptime': vm.get('uptime', 0),
+                        'template': vm.get('template', 0)
+                    }
+                    vms.append(vm_info)
+            except Exception as e:
+                logger.warning(f"Error obteniendo VMs QEMU de {node_name}: {str(e)}")
+            
+            # Obtener contenedores LXC
+            try:
+                lxc_containers = proxmox.nodes(node_name).lxc.get()
+                for container in lxc_containers:
+                    container_info = {
+                        'vmid': container['vmid'],
+                        'name': container['name'],
+                        'status': container['status'],
+                        'type': 'lxc',
+                        'node': node_name,
+                        'node_key': node_key,
+                        'cpu': container.get('cpu', 0) * 100,
+                        'mem': (container.get('mem', 0) / container.get('maxmem', 1)) * 100 if container.get('maxmem') else 0,
+                        'uptime': container.get('uptime', 0),
+                        'template': container.get('template', 0)
+                    }
+                    vms.append(container_info)
+            except Exception as e:
+                logger.warning(f"Error obteniendo LXC de {node_name}: {str(e)}")
+        
+        return JsonResponse({
+            'success': True,
+            'data': vms,
+            'summary': {
+                'total': len(vms),
+                'running': len([vm for vm in vms if vm['status'] == 'running']),
+                'stopped': len([vm for vm in vms if vm['status'] == 'stopped']),
+                'qemu': len([vm for vm in vms if vm['type'] == 'qemu']),
+                'lxc': len([vm for vm in vms if vm['type'] == 'lxc'])
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+@login_required
+def api_node_status(request, node_key):
+    """
+    API endpoint para obtener el estado de un nodo específico
+    """
+    try:
+        proxmox = proxmox_manager.get_connection(node_key)
+        nodes_data = proxmox.nodes.get()
+        version = proxmox.version.get()
+        
+        node_status = {
+            'node_key': node_key,
+            'status': 'online',
+            'version': version.get('version', 'N/A'),
+            'nodes': []
+        }
+        
+        for node in nodes_data:
+            node_name = node['node']
+            try:
+                node_detail = proxmox.nodes(node_name).status.get()
+                node_info = {
+                    'name': node_name,
+                    'status': node['status'],
+                    'cpu': node_detail.get('cpu', 0) * 100,
+                    'memory': {
+                        'total': node_detail.get('memory', {}).get('total', 0),
+                        'used': node_detail.get('memory', {}).get('used', 0),
+                        'free': node_detail.get('memory', {}).get('free', 0),
+                        'percentage': (node_detail.get('memory', {}).get('used', 0) / 
+                                     node_detail.get('memory', {}).get('total', 1)) * 100
+                    },
+                    'uptime': node_detail.get('uptime', 0),
+                    'load': node_detail.get('loadavg', [0, 0, 0])
+                }
+                node_status['nodes'].append(node_info)
+            except Exception as e:
+                logger.warning(f"Error obteniendo estado del nodo {node_name}: {str(e)}")
+        
+        return JsonResponse({
+            'success': True,
+            'data': node_status
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+@login_required
+def api_vm_status_new(request, node_key, node_name, vmid):
+    """
+    API endpoint para obtener el estado de una VM específica en el nuevo sistema
+    """
+    try:
+        proxmox = proxmox_manager.get_connection(node_key)
+        
+        # Determinar tipo de VM
+        vm_type = None
+        vm_status = None
+        
+        try:
+            vm_status = proxmox.nodes(node_name).qemu(vmid).status.current.get()
+            vm_type = 'qemu'
+        except Exception:
+            try:
+                vm_status = proxmox.nodes(node_name).lxc(vmid).status.current.get()
+                vm_type = 'lxc'
+            except Exception:
+                return JsonResponse({
+                    'success': False,
+                    'message': f"No se encontró VM con ID {vmid} en el nodo {node_name}"
+                })
+        
+        if not vm_status:
+            return JsonResponse({
+                'success': False,
+                'message': f"No se pudo obtener el estado de la VM {vmid}"
+            })
+        
+        # Añadir información adicional
+        vm_status['type'] = vm_type
+        vm_status['node_key'] = node_key
+        vm_status['node_name'] = node_name
+        
+        return JsonResponse({
+            'success': True,
+            'data': vm_status
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+@login_required
+def api_vm_metrics_new(request, node_key, node_name, vmid):
+    """
+    API endpoint para obtener métricas detalladas de una VM en el nuevo sistema
+    """
+    try:
+        proxmox = proxmox_manager.get_connection(node_key)
+        
+        # Determinar tipo de VM
+        vm_type = None
+        try:
+            proxmox.nodes(node_name).qemu(vmid).status.current.get()
+            vm_type = 'qemu'
+        except:
+            try:
+                proxmox.nodes(node_name).lxc(vmid).status.current.get()
+                vm_type = 'lxc'
+            except:
+                return JsonResponse({
+                    'success': False,
+                    'message': f"No se encontró VM con ID {vmid} en el nodo {node_name}"
+                })
+        
+        # Obtener métricas actuales
+        if vm_type == 'qemu':
+            vm_status = proxmox.nodes(node_name).qemu(vmid).status.current.get()
+            vm_config = proxmox.nodes(node_name).qemu(vmid).config.get()
+            
+            # Obtener datos RRD para historial
+            try:
+                rrd_data = proxmox.nodes(node_name).qemu(vmid).rrddata.get(
+                    timeframe='hour',
+                    cf='AVERAGE'
+                )
+            except:
+                rrd_data = []
+                
+        else:  # lxc
+            vm_status = proxmox.nodes(node_name).lxc(vmid).status.current.get()
+            vm_config = proxmox.nodes(node_name).lxc(vmid).config.get()
+            
+            # Obtener datos RRD para historial
+            try:
+                rrd_data = proxmox.nodes(node_name).lxc(vmid).rrddata.get(
+                    timeframe='hour',
+                    cf='AVERAGE'
+                )
+            except:
+                rrd_data = []
+        
+        # Calcular métricas
+        cpu = vm_status.get('cpu', 0) * 100
+        mem = vm_status.get('mem', 0) / vm_status.get('maxmem', 1) * 100
+        mem_used = round(vm_status.get('mem', 0) / (1024 ** 2), 2)  # MB
+        mem_total = round(vm_status.get('maxmem', 0) / (1024 ** 2), 2)  # MB
+        
+        # Procesar historial RRD
+        history = {
+            'timestamps': [],
+            'cpu': [],
+            'memory': [],
+            'disk_read': [],
+            'disk_write': [],
+            'net_in': [],
+            'net_out': []
+        }
+        
+        for point in rrd_data:
+            time_val = point.get('time', 0)
+            history['timestamps'].append(time_val)
+            history['cpu'].append(point.get('cpu', 0) * 100)
+            
+            mem_val = 0
+            if 'mem' in point and 'maxmem' in point and point['maxmem'] > 0:
+                mem_val = (point['mem'] / point['maxmem']) * 100
+            history['memory'].append(mem_val)
+            
+            history['disk_read'].append(point.get('diskread', 0) / (1024 ** 2))
+            history['disk_write'].append(point.get('diskwrite', 0) / (1024 ** 2))
+            history['net_in'].append(point.get('netin', 0) / (1024 ** 2))  # CORREGIDO: Completé esta línea
+            history['net_out'].append(point.get('netout', 0) / (1024 ** 2))
+        
+        # Respuesta completa
+        metrics = {
+            'vmid': vmid,
+            'name': vm_status.get('name', 'N/A'),
+            'type': vm_type,
+            'status': vm_status.get('status', 'unknown'),
+            'node_key': node_key,
+            'node_name': node_name,
+            'current': {
+                'cpu': cpu,
+                'memory': {
+                    'percentage': mem,
+                    'used_mb': mem_used,
+                    'total_mb': mem_total,
+                    'used_bytes': vm_status.get('mem', 0),
+                    'total_bytes': vm_status.get('maxmem', 0)
+                },
+                'uptime': vm_status.get('uptime', 0),
+                'pid': vm_status.get('pid', 0),
+                'ha': vm_config.get('ha', {}),
+                'balloon': vm_config.get('balloon', 0) if vm_type == 'qemu' else None
+            },
+            'config': {
+                'cores': vm_config.get('cores', 1),
+                'memory': vm_config.get('memory', 512),
+                'ostype': vm_config.get('ostype', 'other'),
+                'bootdisk': vm_config.get('bootdisk', ''),
+                'net0': vm_config.get('net0', ''),
+                'onboot': vm_config.get('onboot', 0)
+            },
+            'history': history,
+            'last_updated': int(time.time())
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'data': metrics
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        })
+
+# Vista principal para el overview de nodos

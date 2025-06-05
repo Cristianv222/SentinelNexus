@@ -15,24 +15,6 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 from celery.schedules import crontab
 
-
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': ['templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'sentinelnexus.context_processors.grafana_settings',  # Añade esta línea
-            ],
-        },
-    },  
-]
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -87,6 +69,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'sentinelnexus.context_processors.grafana_settings',  # Añade esta línea
             ],
         },
     },
@@ -177,22 +160,6 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutos como límite para tareas
 CELERY_RESULT_EXTENDED = True  # Almacenar más detalles en los resultados
 
-# Configuración de tareas periódicas con Celery Beat
-CELERY_BEAT_SCHEDULE = {
-    'monitor-proxmox-every-5-minutes': {
-        'task': 'submodulos.tasks.monitor_proxmox_servers',
-        'schedule': crontab(minute='*/5'),  # Cada 5 minutos
-    },
-    'collect-local-metrics-every-minute': {
-        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
-        'schedule': crontab(minute='*'),  # Cada minuto
-    },
-    'collect-hybrid-metrics-every-hour': {
-        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
-        'schedule': 3600.0, # Cada hora
-    }
-}
-
 # Configuración de Redis para cache
 CACHES = {
     'default': {
@@ -208,19 +175,78 @@ CACHES = {
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 
-# Configuración de Proxmox usando variables de entorno
-PROXMOX = {
-    'host': os.environ.get('PROXMOX_HOST', ''),
-    'user': os.environ.get('PROXMOX_USER', ''),
-    'password': os.environ.get('PROXMOX_PASSWORD', ''),
-    'verify_ssl': os.environ.get('PROXMOX_VERIFY_SSL', 'false').lower() == 'true',
+# Configuración de múltiples nodos Proxmox
+PROXMOX_NODES = {
+    'node1': {
+        'host': os.environ.get('PROXMOX_NODE1_HOST', ''),
+        'user': os.environ.get('PROXMOX_NODE1_USER', ''),
+        'password': os.environ.get('PROXMOX_NODE1_PASSWORD', ''),
+        'verify_ssl': os.environ.get('PROXMOX_NODE1_VERIFY_SSL', 'false').lower() == 'true',
+        'name': os.environ.get('PROXMOX_NODE1_NAME', 'Nodo Principal'),
+        'port': os.environ.get('PROXMOX_NODE1_PORT', '8006'),
+        'description': os.environ.get('PROXMOX_NODE1_DESCRIPTION', 'Servidor principal de virtualización'),
+        'location': os.environ.get('PROXMOX_NODE1_LOCATION', 'Datacenter Principal'),
+    },
+    'node2': {
+        'host': os.environ.get('PROXMOX_NODE2_HOST', ''),
+        'user': os.environ.get('PROXMOX_NODE2_USER', ''),
+        'password': os.environ.get('PROXMOX_NODE2_PASSWORD', ''),
+        'verify_ssl': os.environ.get('PROXMOX_NODE2_VERIFY_SSL', 'false').lower() == 'true',
+        'name': os.environ.get('PROXMOX_NODE2_NAME', 'Nodo Secundario'),
+        'port': os.environ.get('PROXMOX_NODE2_PORT', '8006'),
+        'description': os.environ.get('PROXMOX_NODE2_DESCRIPTION', 'Servidor secundario de virtualización'),
+        'location': os.environ.get('PROXMOX_NODE2_LOCATION', 'Datacenter Secundario'),
+    },
+    'node3': {
+        'host': os.environ.get('PROXMOX_NODE3_HOST', ''),
+        'user': os.environ.get('PROXMOX_NODE3_USER', ''),
+        'password': os.environ.get('PROXMOX_NODE3_PASSWORD', ''),
+        'verify_ssl': os.environ.get('PROXMOX_NODE3_VERIFY_SSL', 'false').lower() == 'true',
+        'name': os.environ.get('PROXMOX_NODE3_NAME', 'Nodo Terciario'),
+        'port': os.environ.get('PROXMOX_NODE3_PORT', '8006'),
+        'description': os.environ.get('PROXMOX_NODE3_DESCRIPTION', 'Servidor de backup y desarrollo'),
+        'location': os.environ.get('PROXMOX_NODE3_LOCATION', 'Datacenter Backup'),
+    }
 }
-    
-# Verificación de que la configuración de Proxmox esté completa
-if not PROXMOX['host'] or not PROXMOX['user'] or not PROXMOX['password']:
+
+# Función para obtener nodos activos (que tienen configuración completa)
+def get_active_proxmox_nodes():
+    active_nodes = {}
+    for node_key, node_config in PROXMOX_NODES.items():
+        if node_config['host'] and node_config['user'] and node_config['password']:
+            active_nodes[node_key] = node_config
+    return active_nodes
+
+# Verificación de que al menos un nodo esté configurado
+active_nodes = get_active_proxmox_nodes()
+if not active_nodes:
     import warnings
     warnings.warn(
-        "Las configuraciones de Proxmox no están completas. "
+        "No hay nodos de Proxmox configurados correctamente. "
         "Algunas funcionalidades relacionadas con Proxmox no estarán disponibles. "
-        "Asegúrate de configurar PROXMOX_HOST, PROXMOX_USER y PROXMOX_PASSWORD."
+        "Configura al menos un nodo con HOST, USER y PASSWORD."
     )
+
+# Mantener compatibilidad con la configuración anterior (nodo principal)
+PROXMOX = PROXMOX_NODES.get('node1', {
+    'host': '',
+    'user': '',
+    'password': '',
+    'verify_ssl': False,
+})
+
+# Configuración de tareas periódicas actualizadas para múltiples nodos
+CELERY_BEAT_SCHEDULE = {
+    'monitor-proxmox-every-5-minutes': {
+        'task': 'submodulos.tasks.monitor_all_proxmox_servers',  # Nueva tarea para todos los nodos
+        'schedule': crontab(minute='*/5'),
+    },
+    'collect-local-metrics-every-minute': {
+        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
+        'schedule': crontab(minute='*'),
+    },
+    'collect-hybrid-metrics-every-hour': {
+        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
+        'schedule': 3600.0,
+    }
+}
