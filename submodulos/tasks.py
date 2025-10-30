@@ -5,6 +5,11 @@ from proxmoxer import ProxmoxAPI
 import psutil
 import logging
 
+from celery import shared_task
+from django.utils import timezone
+from datetime import timedelta, datetime
+import logging
+
 # Configurar logging
 logger = logging.getLogger(__name__)
 
@@ -99,3 +104,58 @@ def collect_local_metrics_hybrid():
     except Exception as e:
         logger.error(f"Error al recopilar métricas híbridas: {str(e)}", exc_info=True)
         return f"Error al recopilar métricas híbridas: {str(e)}"
+    
+@shared_task
+def monitor_all_proxmox_servers():
+    """Monitorea todos los servidores Proxmox configurados"""
+    from utils.proxmox_manager import proxmox_manager
+    from submodulos.models import ServerMetrics, ProxmoxServer
+    
+    results = []
+    
+    # Obtener todos los nodos configurados
+    active_nodes = proxmox_manager.get_all_nodes()
+    
+    for node_key, node_config in active_nodes.items():
+        try:
+            # Conectar al servidor
+            proxmox = proxmox_manager.get_connection(node_key)
+            nodes = proxmox.nodes.get()
+            
+            # Obtener o crear el registro del servidor en BD
+            server, created = ProxmoxServer.objects.get_or_create(
+                hostname=node_config['host'],
+                defaults={
+                    'name': node_config.get('name', node_key),
+                    'username': node_config['user'],
+                    'password': node_config['password'],
+                    'verify_ssl': node_config.get('verify_ssl', False),
+                    'is_active': True
+                }
+            )
+            
+            for node in nodes:
+                node_name = node['node']
+                node_status = proxmox.nodes(node_name).status.get()
+                
+                # Guardar métricas
+                ServerMetrics.objects.create(
+                    server=server,
+                    cpu_usage=node_status.get('cpu', 0) * 100,
+                    memory_usage=(node_status['memory']['used'] / node_status['memory']['total']) * 100,
+                    memory_total=node_status['memory']['total'],
+                    memory_used=node_status['memory']['used'],
+                    disk_usage=(node_status['rootfs']['used'] / node_status['rootfs']['total']) * 100,
+                    disk_total=node_status['rootfs']['total'],
+                    disk_used=node_status['rootfs']['used'],
+                    uptime=node_status.get('uptime', 0),
+                    status='online'
+                )
+                
+                results.append(f"✓ {node_config['name']} - {node_name}")
+                
+        except Exception as e:
+            logger.error(f"Error monitoreando {node_key}: {str(e)}")
+            results.append(f"✗ {node_config.get('name', node_key)}: {str(e)}")
+    
+    return f"Monitoreo completado: {', '.join(results)}"

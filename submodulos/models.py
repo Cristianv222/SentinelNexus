@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+from django.db.models import Q
 
 class TipoRecurso(models.Model):
     tipo_recurso_id = models.AutoField(primary_key=True)
@@ -43,6 +45,15 @@ class ProxmoxServer(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Añadir estos nuevos campos para almacenar especificaciones
+    cpu_cores = models.IntegerField(default=0)
+    cpu_model = models.CharField(max_length=255, blank=True)
+    ram_total_bytes = models.BigIntegerField(default=0)
+    storage_total_bytes = models.BigIntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    
 
     def __str__(self):
         return self.name
@@ -438,3 +449,83 @@ class LocalMetric(models.Model):
     
     def __str__(self):
         return f"Local Metrics - {self.timestamp}"
+    
+class ServerMetrics(models.Model):
+    """Métricas históricas de servidores Proxmox"""
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='server_metrics')
+    timestamp = models.DateTimeField(default=timezone.now)
+    cpu_usage = models.FloatField(default=0.0)  # Porcentaje
+    memory_usage = models.FloatField(default=0.0)  # Porcentaje
+    memory_total = models.BigIntegerField(default=0)  # Bytes
+    memory_used = models.BigIntegerField(default=0)  # Bytes
+    disk_usage = models.FloatField(default=0.0)  # Porcentaje
+    disk_total = models.BigIntegerField(default=0)  # Bytes
+    disk_used = models.BigIntegerField(default=0)  # Bytes
+    network_in = models.BigIntegerField(default=0)  # Bytes
+    network_out = models.BigIntegerField(default=0)  # Bytes
+    uptime = models.BigIntegerField(default=0)  # Segundos
+    load_average = models.FloatField(default=0.0)
+    status = models.CharField(max_length=20, default='online')
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['server', '-timestamp']),
+            models.Index(fields=['-timestamp']),
+        ]
+        verbose_name = 'Métrica de Servidor'
+        verbose_name_plural = 'Métricas de Servidores'
+
+    def __str__(self):
+        return f"{self.server.name} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+
+class VMMetrics(models.Model):
+    """Métricas históricas de Máquinas Virtuales"""
+    vm = models.ForeignKey(MaquinaVirtual, on_delete=models.CASCADE, related_name='vm_metrics')
+    timestamp = models.DateTimeField(default=timezone.now)
+    cpu_usage = models.FloatField(default=0.0)  # Porcentaje
+    cpu_cores = models.IntegerField(default=1)
+    memory_usage = models.FloatField(default=0.0)  # Porcentaje
+    memory_total = models.BigIntegerField(default=0)  # Bytes
+    memory_used = models.BigIntegerField(default=0)  # Bytes
+    disk_read = models.BigIntegerField(default=0)  # Bytes/s
+    disk_write = models.BigIntegerField(default=0)  # Bytes/s
+    network_in = models.BigIntegerField(default=0)  # Bytes/s
+    network_out = models.BigIntegerField(default=0)  # Bytes/s
+    status = models.CharField(max_length=20, default='unknown')
+    uptime = models.BigIntegerField(default=0)  # Segundos
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['vm', '-timestamp']),
+            models.Index(fields=['-timestamp']),
+        ]
+        verbose_name = 'Métrica de VM'
+        verbose_name_plural = 'Métricas de VMs'
+
+    def __str__(self):
+        return f"{self.vm.nombre} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+
+class MetricsAggregation(models.Model):
+    """Agregaciones diarias de métricas para reportes"""
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='metrics_aggregations')
+    date = models.DateField()
+    avg_cpu = models.FloatField(default=0.0)
+    avg_memory = models.FloatField(default=0.0)
+    avg_disk = models.FloatField(default=0.0)
+    max_cpu = models.FloatField(default=0.0)
+    max_memory = models.FloatField(default=0.0)
+    max_disk = models.FloatField(default=0.0)
+    total_network_in = models.BigIntegerField(default=0)
+    total_network_out = models.BigIntegerField(default=0)
+    vm_count = models.IntegerField(default=0)
+    active_vm_count = models.IntegerField(default=0)
+    
+    class Meta:
+        unique_together = ['server', 'date']
+        verbose_name = 'Agregación de Métricas'
+        verbose_name_plural = 'Agregaciones de Métricas'
+
+    def __str__(self):
+        return f"{self.server.name} - {self.date}"

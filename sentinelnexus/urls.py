@@ -4,6 +4,8 @@ from django.urls import path, re_path, include
 from django.contrib.auth.views import LoginView, LogoutView
 from . import views
 
+
+
 urlpatterns = [
     # Página principal redirige al dashboard de nodos
     path('', RedirectView.as_view(url='/nodes/', permanent=False), name='home'),
@@ -82,4 +84,17 @@ urlpatterns = [
     path('api/nodes/<str:node_key>/status/', views.api_node_status, name='api_node_status'),
     path('api/nodes/<str:node_key>/vms/<str:node_name>/<int:vmid>/status/', views.api_vm_status_new, name='api_vm_status_new'),
     path('api/nodes/<str:node_key>/vms/<str:node_name>/<int:vmid>/metrics/', views.api_vm_metrics_new, name='api_vm_metrics_new'),
+
+    # APIs de métricas
+    path('api/metrics/', views.api_metrics, name='api_metrics'),
+    path('api/metrics/realtime/', views.api_metrics_realtime, name='api_metrics_realtime'),
+    #path('api/servers/metrics/', views.api_servers_metrics, name='api_servers_metrics'),
+    
+    # Vista de métricas
+    path('metrics/', views.metrics_dashboard, name='metrics'),
+    path('api/predictions/server/<int:server_id>/', views.get_metrics_predictions, name='metrics_predictions'),
+    path('api/server/<int:server_id>/vms/', views.get_server_vms, name='server_vms'),
+
+    path('api/vms/metrics/', views.vms_metrics_api, name='vms_metrics_api'),
+    
 ]

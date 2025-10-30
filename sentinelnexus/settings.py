@@ -172,7 +172,7 @@ CACHES = {
 }
 
 # Configuración de sesiones con Redis
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_CACHE_ALIAS = 'default'
 
 # Configuración de múltiples nodos Proxmox
@@ -206,7 +206,17 @@ PROXMOX_NODES = {
         'port': os.environ.get('PROXMOX_NODE3_PORT', '8006'),
         'description': os.environ.get('PROXMOX_NODE3_DESCRIPTION', 'Servidor de backup y desarrollo'),
         'location': os.environ.get('PROXMOX_NODE3_LOCATION', 'Datacenter Backup'),
-    }
+    },
+    'node4': {
+        'host': os.environ.get('PROXMOX_NODE4_HOST', ''),
+        'user': os.environ.get('PROXMOX_NODE4_USER', ''),
+        'password': os.environ.get('PROXMOX_NODE4_PASSWORD', ''),
+        'verify_ssl': os.environ.get('PROXMOX_NODE4_VERIFY_SSL', 'false').lower() == 'true',
+        'name': os.environ.get('PROXMOX_NODE4_NAME', 'Nodo Cuaternario'),
+        'port': os.environ.get('PROXMOX_NODE4_PORT', '8006'),
+        'description': os.environ.get('PROXMOX_NODE4_DESCRIPTION', 'Servidor terciario de virtualización'),
+        'location': os.environ.get('PROXMOX_NODE4_LOCATION', 'Datacenter Terciario'),
+    },
 }
 
 # Función para obtener nodos activos (que tienen configuración completa)
@@ -250,3 +260,12 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 3600.0,
     }
 }
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Directorios adicionales de archivos estáticos
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'sentinelnexus/static'),
+]
