@@ -41,6 +41,7 @@ class ProxmoxServer(models.Model):
     hostname = models.CharField(max_length=255)
     username = models.CharField(max_length=100)
     password = models.CharField(max_length=255)  # Idealmente, usa encriptación
+    node_name = models.CharField(max_length=100, default="pve", verbose_name="Nombre del Nodo (ej: www, prx1)") #Arreglo
     verify_ssl = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -452,7 +453,7 @@ class LocalMetric(models.Model):
     
 class ServerMetrics(models.Model):
     """Métricas históricas de servidores Proxmox"""
-    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='server_metrics')
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='server_metrics', null=True, blank=True)
     timestamp = models.DateTimeField(default=timezone.now)
     cpu_usage = models.FloatField(default=0.0)  # Porcentaje
     memory_usage = models.FloatField(default=0.0)  # Porcentaje
@@ -478,6 +479,7 @@ class ServerMetrics(models.Model):
 
     def __str__(self):
         return f"{self.server.name} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+    
 
 class VMMetrics(models.Model):
     """Métricas históricas de Máquinas Virtuales"""

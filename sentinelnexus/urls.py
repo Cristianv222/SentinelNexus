@@ -88,7 +88,7 @@ urlpatterns = [
     # APIs de métricas
     path('api/metrics/', views.api_metrics, name='api_metrics'),
     path('api/metrics/realtime/', views.api_metrics_realtime, name='api_metrics_realtime'),
-    #path('api/servers/metrics/', views.api_servers_metrics, name='api_servers_metrics'),
+    path('api/servers/metrics/', views.api_servers_metrics, name='api_servers_metrics'),
     
     # Vista de métricas
     path('metrics/', views.metrics_dashboard, name='metrics'),

@@ -1,3 +1,6 @@
+from submodulos.models import ProxmoxServer  
+from proxmoxer import ProxmoxAPI    
+import logging 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -2370,71 +2373,79 @@ def vm_console(request, node_name, vmid, vm_type):
     logger = logging.getLogger(__name__)
 
 @login_required
+@login_required
 def nodes_overview(request):
     """
     Vista principal del dashboard que muestra todos los nodos disponibles
+    (Versión BDD - Lee de ProxmoxServer)
     """
     try:
-        active_nodes = proxmox_manager.get_all_nodes()
+        # 1. LEER DE LA BASE DE DATOS
+        active_servers = ProxmoxServer.objects.filter(is_active=True)
         nodes_info = []
         
-        for node_key, node_config in active_nodes.items():
+        # 2. ITERAR SOBRE LOS SERVIDORES DE LA BDD
+        for server in active_servers:
             try:
-                # Conectar a Proxmox para obtener información del nodo
-                proxmox = proxmox_manager.get_connection(node_key)
+                # 3. CONECTAR USANDO LOS DATOS DE LA BDD
+                proxmox = ProxmoxAPI(
+                    server.hostname,
+                    user=server.username,
+                    password=server.password,
+                    verify_ssl=server.verify_ssl,
+                    timeout=10 # Le damos 10 segundos
+                )
                 
-                # Obtener información básica del nodo
-                nodes_data = proxmox.nodes.get()
+                # 4. OBTENER INFORMACIÓN DEL NODO
+                node_name = server.node_name 
+                
                 total_vms = 0
                 running_vms = 0
+
+                # Obtener VMs QEMU
+                try:
+                    qemu_vms = proxmox.nodes(node_name).qemu.get()
+                    total_vms += len(qemu_vms)
+                    running_vms += len([vm for vm in qemu_vms if vm['status'] == 'running'])
+                except Exception as e:
+                    logger.warning(f"Error obteniendo VMs QEMU de {node_name}: {str(e)}")
                 
-                for node in nodes_data:
-                    node_name = node['node']
-                    
-                    # Obtener VMs QEMU
-                    try:
-                        qemu_vms = proxmox.nodes(node_name).qemu.get()
-                        total_vms += len(qemu_vms)
-                        running_vms += len([vm for vm in qemu_vms if vm['status'] == 'running'])
-                    except Exception as e:
-                        logger.warning(f"Error obteniendo VMs QEMU de {node_name}: {str(e)}")
-                    
-                    # Obtener contenedores LXC
-                    try:
-                        lxc_containers = proxmox.nodes(node_name).lxc.get()
-                        total_vms += len(lxc_containers)
-                        running_vms += len([c for c in lxc_containers if c['status'] == 'running'])
-                    except Exception as e:
-                        logger.warning(f"Error obteniendo LXC de {node_name}: {str(e)}")
+                # Obtener contenedores LXC
+                try:
+                    lxc_containers = proxmox.nodes(node_name).lxc.get()
+                    total_vms += len(lxc_containers)
+                    running_vms += len([c for c in lxc_containers if c['status'] == 'running'])
+                except Exception as e:
+                    logger.warning(f"Error obteniendo LXC de {node_name}: {str(e)}")
                 
-                # Información del nodo principal
-                main_node = nodes_data[0] if nodes_data else {}
-                
+                # Obtener estado del nodo
+                node_status = proxmox.nodes(node_name).status.get()
+
                 node_info = {
-                    'key': node_key,
-                    'name': node_config.get('name', f'Nodo {node_key}'),
-                    'description': node_config.get('description', ''),
-                    'location': node_config.get('location', ''),
-                    'host': node_config['host'],
+                    'key': server.id,
+                    'name': server.name,
+                    'description': f"Servidor {server.name}", # Puedes mejorar esto si añades un campo 'description' al modelo
+                    'location': f"Datacenter {server.id}", # Ídem
+                    'host': server.hostname,
                     'status': 'online',
                     'total_vms': total_vms,
                     'running_vms': running_vms,
-                    'cpu_usage': main_node.get('cpu', 0) * 100,
-                    'memory_usage': (main_node.get('mem', 0) / main_node.get('maxmem', 1)) * 100 if main_node.get('maxmem') else 0,
-                    'uptime': main_node.get('uptime', 0),
+                    'cpu_usage': node_status.get('cpu', 0) * 100,
+                    'memory_usage': (node_status.get('memory', {}).get('used', 0) / node_status.get('memory', {}).get('total', 1)) * 100,
+                    'uptime': node_status.get('uptime', 0),
                     'version': proxmox.version.get().get('version', 'N/A'),
-                    'node_count': len(nodes_data),
-                    'connection_url': proxmox_manager.get_connection_url(node_key)
+                    'node_count': 1,
+                    'connection_url': f"https://{server.hostname}:8006"
                 }
                 
             except Exception as e:
-                logger.error(f"Error conectando al nodo {node_key}: {str(e)}")
+                logger.error(f"Error conectando al servidor {server.name}: {str(e)}")
                 node_info = {
-                    'key': node_key,
-                    'name': node_config.get('name', f'Nodo {node_key}'),
-                    'description': node_config.get('description', ''),
-                    'location': node_config.get('location', ''),
-                    'host': node_config['host'],
+                    'key': server.id,
+                    'name': server.name,
+                    'description': "Error de conexión",
+                    'location': "N/A",
+                    'host': server.hostname,
                     'status': 'offline',
                     'error': str(e),
                     'total_vms': 0,
@@ -2449,6 +2460,8 @@ def nodes_overview(request):
             
             nodes_info.append(node_info)
         
+        #Prueba 
+
         context = {
             'nodes': nodes_info,
             'total_nodes': len(nodes_info),
@@ -3746,66 +3759,71 @@ def api_metrics_export(request):
     return JsonResponse(data)
 
 
+
+
+logger = logging.getLogger(__name__) # <-- Añade esto
+
 @login_required
 def api_servers_metrics(request):
-    """API endpoint para métricas de todos los servidores"""
-    from utils.proxmox_manager import proxmox_manager
-    
-    try:
-        servers_data = []
-        active_nodes = proxmox_manager.get_all_nodes()
-        
-        for node_key, node_config in active_nodes.items():
-            try:
-                proxmox = proxmox_manager.get_connection(node_key)
-                nodes = proxmox.nodes.get()
-                
-                if nodes:
-                    node = nodes[0]
-                    node_name = node['node']
-                    node_status = proxmox.nodes(node_name).status.get()
-                    
-                    server_info = {
-                        'name': node_config.get('name', node_key),
-                        'host': node_config['host'],
-                        'status': 'online',
-                        'cpu': node_status.get('cpu', 0) * 100,
-                        'memory': {
-                            'used': node_status.get('memory', {}).get('used', 0),
-                            'total': node_status.get('memory', {}).get('total', 0),
-                            'percent': (node_status.get('memory', {}).get('used', 0) / 
-                                      node_status.get('memory', {}).get('total', 1)) * 100
-                        },
-                        'disk': {
-                            'used': node_status.get('rootfs', {}).get('used', 0),
-                            'total': node_status.get('rootfs', {}).get('total', 0),
-                            'percent': (node_status.get('rootfs', {}).get('used', 0) / 
-                                      node_status.get('rootfs', {}).get('total', 1)) * 100
-                        },
-                        'uptime': node_status.get('uptime', 0)
-                    }
-                    servers_data.append(server_info)
-                    
-            except Exception as e:
-                servers_data.append({
-                    'name': node_config.get('name', node_key),
-                    'host': node_config['host'],
-                    'status': 'offline',
-                    'error': str(e)
-                })
-        
-        return JsonResponse({
-            'success': True,
-            'servers': servers_data,
-            'total': len(servers_data),
-            'online': len([s for s in servers_data if s.get('status') == 'online'])
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
+    """API endpoint para métricas de todos los servidores (Versión BDD)"""
+
+    servers_data = []
+
+    # 1. Obtiene los servidores desde la BASE DE DATOS
+    active_servers = ProxmoxServer.objects.filter(is_active=True)
+
+    # 2. Itera sobre los servidores de la BDD
+    for server in active_servers:
+        try:
+            # 3. Conecta usando las credenciales de la BDD
+            proxmox = ProxmoxAPI(
+                server.hostname,
+                user=server.username,
+                password=server.password,
+                verify_ssl=False,
+                timeout=10 # Le damos 10 segundos
+            )
+
+            # 4. Usa el 'node_name' que guardamos en la BDD
+            node_name = server.node_name
+            node_status = proxmox.nodes(node_name).status.get()
+
+            server_info = {
+                'name': server.name,
+                'host': server.hostname,
+                'status': 'online',
+                'cpu': node_status.get('cpu', 0) * 100,
+                'memory': {
+                    'used': node_status.get('memory', {}).get('used', 0),
+                    'total': node_status.get('memory', {}).get('total', 0),
+                    'percent': (node_status.get('memory', {}).get('used', 0) / 
+                                node_status.get('memory', {}).get('total', 1)) * 100
+                },
+                'disk': {
+                    'used': node_status.get('rootfs', {}).get('used', 0),
+                    'total': node_status.get('rootfs', {}).get('total', 0),
+                    'percent': (node_status.get('rootfs', {}).get('used', 0) / 
+                                node_status.get('rootfs', {}).get('total', 1)) * 100
+                },
+                'uptime': node_status.get('uptime', 0)
+            }
+            servers_data.append(server_info)
+
+        except Exception as e:
+            logger.error(f"Error al conectar con el servidor {server.name} (ID: {server.id}): {e}")
+            servers_data.append({
+                'name': server.name,
+                'host': server.hostname,
+                'status': 'offline',
+                'error': str(e)
+            })
+
+    return JsonResponse({
+        'success': True,
+        'servers': servers_data,
+        'total': len(servers_data),
+        'online': len([s for s in servers_data if s.get('status') == 'online'])
+    })
     
 
 # sentinelnexus/views.py - Agregar esta función para obtener métricas de VMs

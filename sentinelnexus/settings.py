@@ -35,6 +35,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'submodulos',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -127,7 +128,6 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
-STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
@@ -176,74 +176,16 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_CACHE_ALIAS = 'default'
 
 # Configuración de múltiples nodos Proxmox
-PROXMOX_NODES = {
-    'node1': {
-        'host': os.environ.get('PROXMOX_NODE1_HOST', ''),
-        'user': os.environ.get('PROXMOX_NODE1_USER', ''),
-        'password': os.environ.get('PROXMOX_NODE1_PASSWORD', ''),
-        'verify_ssl': os.environ.get('PROXMOX_NODE1_VERIFY_SSL', 'false').lower() == 'true',
-        'name': os.environ.get('PROXMOX_NODE1_NAME', 'Nodo Principal'),
-        'port': os.environ.get('PROXMOX_NODE1_PORT', '8006'),
-        'description': os.environ.get('PROXMOX_NODE1_DESCRIPTION', 'Servidor principal de virtualización'),
-        'location': os.environ.get('PROXMOX_NODE1_LOCATION', 'Datacenter Principal'),
-    },
-    'node2': {
-        'host': os.environ.get('PROXMOX_NODE2_HOST', ''),
-        'user': os.environ.get('PROXMOX_NODE2_USER', ''),
-        'password': os.environ.get('PROXMOX_NODE2_PASSWORD', ''),
-        'verify_ssl': os.environ.get('PROXMOX_NODE2_VERIFY_SSL', 'false').lower() == 'true',
-        'name': os.environ.get('PROXMOX_NODE2_NAME', 'Nodo Secundario'),
-        'port': os.environ.get('PROXMOX_NODE2_PORT', '8006'),
-        'description': os.environ.get('PROXMOX_NODE2_DESCRIPTION', 'Servidor secundario de virtualización'),
-        'location': os.environ.get('PROXMOX_NODE2_LOCATION', 'Datacenter Secundario'),
-    },
-    'node3': {
-        'host': os.environ.get('PROXMOX_NODE3_HOST', ''),
-        'user': os.environ.get('PROXMOX_NODE3_USER', ''),
-        'password': os.environ.get('PROXMOX_NODE3_PASSWORD', ''),
-        'verify_ssl': os.environ.get('PROXMOX_NODE3_VERIFY_SSL', 'false').lower() == 'true',
-        'name': os.environ.get('PROXMOX_NODE3_NAME', 'Nodo Terciario'),
-        'port': os.environ.get('PROXMOX_NODE3_PORT', '8006'),
-        'description': os.environ.get('PROXMOX_NODE3_DESCRIPTION', 'Servidor de backup y desarrollo'),
-        'location': os.environ.get('PROXMOX_NODE3_LOCATION', 'Datacenter Backup'),
-    },
-    'node4': {
-        'host': os.environ.get('PROXMOX_NODE4_HOST', ''),
-        'user': os.environ.get('PROXMOX_NODE4_USER', ''),
-        'password': os.environ.get('PROXMOX_NODE4_PASSWORD', ''),
-        'verify_ssl': os.environ.get('PROXMOX_NODE4_VERIFY_SSL', 'false').lower() == 'true',
-        'name': os.environ.get('PROXMOX_NODE4_NAME', 'Nodo Cuaternario'),
-        'port': os.environ.get('PROXMOX_NODE4_PORT', '8006'),
-        'description': os.environ.get('PROXMOX_NODE4_DESCRIPTION', 'Servidor terciario de virtualización'),
-        'location': os.environ.get('PROXMOX_NODE4_LOCATION', 'Datacenter Terciario'),
-    },
-}
+
 
 # Función para obtener nodos activos (que tienen configuración completa)
-def get_active_proxmox_nodes():
-    active_nodes = {}
-    for node_key, node_config in PROXMOX_NODES.items():
-        if node_config['host'] and node_config['user'] and node_config['password']:
-            active_nodes[node_key] = node_config
-    return active_nodes
+
 
 # Verificación de que al menos un nodo esté configurado
-active_nodes = get_active_proxmox_nodes()
-if not active_nodes:
-    import warnings
-    warnings.warn(
-        "No hay nodos de Proxmox configurados correctamente. "
-        "Algunas funcionalidades relacionadas con Proxmox no estarán disponibles. "
-        "Configura al menos un nodo con HOST, USER y PASSWORD."
-    )
+
 
 # Mantener compatibilidad con la configuración anterior (nodo principal)
-PROXMOX = PROXMOX_NODES.get('node1', {
-    'host': '',
-    'user': '',
-    'password': '',
-    'verify_ssl': False,
-})
+
 
 # Configuración de tareas periódicas actualizadas para múltiples nodos
 CELERY_BEAT_SCHEDULE = {
@@ -268,4 +210,73 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Directorios adicionales de archivos estáticos
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'sentinelnexus/static'),
+    os.path.join(BASE_DIR, 'submodulos/static'),
 ]
+
+# Configuracion de jazzmin 
+
+
+JAZZMIN_SETTINGS = {
+    # Títulos
+    "site_title": "SentinelNexus Admin",
+    "site_header": "SentinelNexus",
+    "site_brand": "SentinelNexus",
+
+    # Logo
+    "site_logo": None, 
+
+    # Texto de bienvenida
+    "welcome_sign": "Bienvenido al Admin de SentinelNexus",
+
+    # Copyright
+    "copyright": "SentinelNexus",
+
+    # === EL TEMA OSCURO ===
+    "theme": "darkly",
+    "dark_mode_theme": "darkly",
+
+    # === COLORES PERSONALIZADOS ===
+    # (Tomados de la captura de tu dashboard)
+    "custom_colors": {
+        "primary": "#3498DB",       # El azul brillante de las tarjetas (links, botones)
+        "secondary": "#2A3F54",     # Gris/azul para botones secundarios
+        "success": "#27ae60",       # Verde de "ONLINE"
+        "info": "#3498DB",
+        "warning": "#f39c12",
+        "danger": "#e74c3c",
+        "light": "#2A3F54",         # Fondo de los "paneles" (ej: "Submodulos")
+        "dark": "#1a2133",          # Fondo principal (el más oscuro de tu dashboard)
+    },
+
+    # === AJUSTES DE UI ===
+    "show_ui_builder": True, # ¡El engranaje volverá a aparecer!
+
+    "ui_tweaks": {
+        "navbar_fixed": True,
+        "sidebar_fixed": True,
+        "sidebar_dark": True,       # Fuerza el menú lateral a ser oscuro
+        "navbar_dark": True,        # Fuerza la barra de navegación a ser oscura
+        "theme": "darkly",          # Aplica el tema oscuro
+    },
+
+    "custom_css": "admin/custom_admin.css",
+
+    # === MENÚ SUPERIOR ===
+    "topmenu_links": [
+        {"name": "Ver Dashboard", "url": "/nodes", "new_window": False},
+        {"model": "submodulos.ProxmoxServer"},
+    ],
+
+    # === ICONOS (AHORA COMPLETO) ===
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        "submodulos.ProxmoxServer": "fas fa-server",
+        "submodulos.Server": "fas fa-hdd",
+        "submodulos.ServerMetric": "fas fa-chart-line",
+        "submodulos.ServerMetrics": "fas fa-chart-bar",
+        "submodulos.MaquinaVirtual": "fas fa-desktop",
+        "submodulos.Nodo": "fas fa-network-wired", # <-- Esta línea faltaba
+    },
+}

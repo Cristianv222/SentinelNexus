@@ -1,0 +1,123 @@
+
+:root {
+    --dark-blue-bg: #1a2133;      /* Fondo principal */
+    --panel-blue-bg: #2A3F54;     /* Fondo del menú lateral y paneles */
+    --card-blue-bg: #3498DB;      /* Azul brillante (Botones Modificar) */
+    --text-light: #ecf0f1;       /* Texto claro (BLANCO) */
+    --text-muted: #abb2b9;       /* Texto gris */
+    --success-green: #27ae60;      /* Verde "ONLINE" */
+}
+
+/* ----------------------------- */
+/* --- FONDOS --- */
+/* ----------------------------- */
+
+body.admin-interface, 
+.content-wrapper, 
+.main-footer {
+    background-color: var(--dark-blue-bg) !important;
+}
+
+.main-sidebar, 
+.sidebar-dark-primary {
+    background-color: var(--panel-blue-bg) !important;
+}
+
+.main-header.navbar {
+    background-color: var(--panel-blue-bg) !important;
+    border-bottom: 1px solid var(--dark-blue-bg) !important;
+}
+
+.card {
+    background-color: var(--panel-blue-bg) !important;
+    color: var(--text-light) !important;
+}
+
+.card-header {
+    background-color: var(--dark-blue-bg) !important;
+    border-bottom: 1px solid var(--panel-blue-bg) !important;
+}
+
+#recent-actions-module {
+    background-color: var(--panel-blue-bg) !important;
+}
+
+/* ------------------------------------- */
+/* --- ¡¡ARREGLO DE TEXTO (BLANCO)!! --- */
+/* ------------------------------------- */
+
+/* Texto general (blanco) */
+body, p, label, .form-control, .breadcrumb-item, th, td {
+    color: var(--text-light) !important;
+}
+
+/* Cabeceras de paneles (blanco) */
+.content-header h1,
+.card-header h3.card-title,
+#recent-actions-module h2,
+h1, h2, h3, h4, h5 {
+     color: var(--text-light) !important;
+}
+
+/* --- ¡ESTO ES LO MÁS IMPORTANTE! --- */
+/* Links principales (AHORA BLANCOS) */
+/* (Grupos, Usuarios, Local metrics, etc.) */
+.card-body a,
+a:not(.btn) {
+    color: var(--text-light) !important; /* <-- CAMBIADO A TEXTO CLARO */
+    font-weight: 500 !important;
+}
+.card-body a:hover,
+a:not(.btn):hover {
+    color: var(--card-blue-bg) !important; /* <-- CAMBIADO A AZUL AL PASAR EL MOUSE */
+    text-decoration: none !important;
+}
+/* --- Fin del arreglo --- */
+
+/* Links del menú lateral (gris claro) */
+.nav-sidebar .nav-link p,
+.nav-sidebar .nav-link i {
+    color: var(--text-muted) !important;
+}
+
+/* Links activos o al pasar el mouse en el menú lateral */
+.nav-sidebar .nav-link:hover,
+.nav-sidebar .nav-link.active,
+.nav-sidebar .nav-link:hover p,
+.nav-sidebar .nav-link.active p,
+.nav-sidebar .nav-link:hover i,
+.nav-sidebar .nav-link.active i {
+    background-color: var(--dark-blue-bg) !important;
+    color: var(--card-blue-bg) !important;
+}
+
+/* Botones "Agregar" y "Modificar" */
+.btn-success {
+    background-color: var(--success-green) !important;
+    border-color: var(--success-green) !important;
+}
+.btn-info {
+    background-color: var(--card-blue-bg) !important;
+    border-color: var(--card-blue-bg) !important;
+}
+
+/* Texto de "Acciones Recientes" (blanco) */
+#recent-actions-module .log-action {
+    color: var(--text-light) !important;
+}
+#recent-actions-module .log-action a {
+    color: var(--card-blue-bg) !important;
+}
+
+/* Texto de "Bienvenido, Jordan" (blanco) */
+.navbar-nav .nav-link,
+.main-header.navbar .nav-link {
+    color: var(--text-light) !important;
+}
+
+/* Inputs de formularios */
+.form-control, .form-control:focus, .select2-selection {
+    background-color: var(--dark-blue-bg) !important;
+    border: 1px solid var(--panel-blue-bg) !important;
+    color: var(--text-light) !important;
+}
