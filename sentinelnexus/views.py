@@ -42,43 +42,53 @@ logger = logging.getLogger(__name__)
 
 def get_proxmox_connection():
     """
-    Establece una conexión con el servidor Proxmox.
+    Establece una conexión con el servidor Proxmox usando la configuración de la Base de Datos.
     """
     try:
-        # Asegúrate de que el usuario tenga el formato correcto
-        if '@' not in settings.PROXMOX['user']:
-            # Si el usuario no tiene un realm, agregar @pam por defecto
-            user = f"{settings.PROXMOX['user']}@pam"
-        else:
-            user = settings.PROXMOX['user']
+        # Intentar conectar con el Servidor Principal o el primero activo disponible
+        server = ProxmoxServer.objects.filter(is_active=True, name='Servidor Principal').first()
+        if not server:
+            server = ProxmoxServer.objects.filter(is_active=True).first()
+            
+        if not server:
+            logger.error("No se encontraron servidores Proxmox activos en la configuración")
+            # Fallback a variables de entorno si existen (por compatibilidad)
+            if hasattr(settings, 'PROXMOX'):
+                return ProxmoxAPI(
+                    settings.PROXMOX['host'],
+                    user=settings.PROXMOX['user'],
+                    password=settings.PROXMOX['password'],
+                    verify_ssl=settings.PROXMOX.get('verify_ssl', False)
+                )
+            raise Exception("No active Proxmox server configured in database")
+
+        # Asegurar formato de usuario
+        user = server.username
+        if '@' not in user:
+            user = f"{user}@pam"
         
-        # Especificar el puerto correcto (generalmente 8006)
-        host = settings.PROXMOX['host']
+        # Asegurar formato de host con puerto
+        host = server.hostname
         if ':' not in host:
             host = f"{host}:8006"
             
-        logger.info(f"Intentando conectar con Proxmox: {host} como {user}")
+        logger.info(f"Conectando a Proxmox: {host} usuario {user}")
         
         proxmox = ProxmoxAPI(
             host,
             user=user,
-            password=settings.PROXMOX['password'],
-            verify_ssl=settings.PROXMOX['verify_ssl'],
-            timeout=30  # Aumentar el timeout para evitar problemas de conexión
+            password=server.password,
+            verify_ssl=server.verify_ssl,
+            timeout=10
         )
         
-        # Probar la conexión haciendo una solicitud simple
+        # Verificar conexión
         proxmox.version.get()
-        
-        logger.info("Conexión exitosa con Proxmox")
         return proxmox
-    
-    except AuthenticationError as e:
-        logger.error(f"Error de autenticación: {str(e)}")
-        raise AuthenticationError(f"Error de autenticación: Usuario o contraseña incorrectos para {user}")
+        
     except Exception as e:
         logger.error(f"Error al conectar con Proxmox: {str(e)}")
-        raise Exception(f"Error al conectar con Proxmox en {host}: {str(e)}")
+        raise Exception(f"Error de conexión Proxmox: {str(e)}")
 
 # Clase para sincronizar datos de Proxmox con la base de datos
 class ProxmoxSynchronizer:
