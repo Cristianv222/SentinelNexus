@@ -34,7 +34,7 @@ class SistemaOperativo(models.Model):
     def __str__(self):
         return f"{self.nombre} {self.version} ({self.arquitectura})"
 
-# Servidor Proxmox - Movido antes de Nodo para evitar problemas de dependencia
+#Servidor Proxmox - Movido antes de Nodo para evitar problemas de dependencia
 class ProxmoxServer(models.Model):
     """Modelo para almacenar información sobre servidores Proxmox"""
     name = models.CharField(max_length=100, unique=True)
@@ -386,35 +386,35 @@ class Server(models.Model):
     active = models.BooleanField(default=True)
     
     # Nuevo campo para relacionar con ProxmoxServer
-    proxmox_server = models.ForeignKey(ProxmoxServer, on_delete=models.SET_NULL, null=True, blank=True, related_name='legacy_servers')
+    #proxmox_server = models.ForeignKey(ProxmoxServer, on_delete=models.SET_NULL, null=True, blank=True, related_name='legacy_servers')
     
     def __str__(self):
         return self.name
     
-    def save(self, *args, **kwargs):
-        """Asegura que exista el servidor Proxmox asociado"""
-        super().save(*args, **kwargs)
-        if not self.proxmox_server and self.active:
-            # Crear automáticamente el servidor Proxmox si no existe
-            proxmox_server, created = ProxmoxServer.objects.get_or_create(
-                name=self.name,
-                defaults={
-                    'hostname': self.host,
-                    'username': self.username,
-                    'password': self.password,
-                    'is_active': self.active
-                }
-            )
-            if created or proxmox_server.hostname != self.host:
-                proxmox_server.hostname = self.host
-                proxmox_server.username = self.username
-                proxmox_server.password = self.password
-                proxmox_server.is_active = self.active
-                proxmox_server.save()
+    #def save(self, *args, **kwargs):
+     #   """Asegura que exista el servidor Proxmox asociado"""
+      #  super().save(*args, **kwargs)
+       # if not self.proxmox_server and self.active:
+        #    # Crear automáticamente el servidor Proxmox si no existe
+         #   proxmox_server, created = ProxmoxServer.objects.get_or_create(
+          #      name=self.name,
+           #     defaults={
+            #        'hostname': self.host,
+             #       'username': self.username,
+              #      'password': self.password,
+               #     'is_active': self.active
+                #}
+            #)
+            #if created or proxmox_server.hostname != self.host:
+             #   proxmox_server.hostname = self.host
+              #  proxmox_server.username = self.username
+               # proxmox_server.password = self.password
+                #proxmox_server.is_active = self.active
+                #proxmox_server.save()
             
-            self.proxmox_server = proxmox_server
+            #self.proxmox_server = proxmox_server
             # Guardar de nuevo sin llamar a este método para evitar recursividad
-            super().save(update_fields=['proxmox_server'])
+            #super().save(update_fields=['proxmox_server'])
 
 # Modelo para métricas de servidores Proxmox
 class ServerMetric(models.Model):
@@ -531,3 +531,25 @@ class MetricsAggregation(models.Model):
 
     def __str__(self):
         return f"{self.server.name} - {self.date}"
+    
+# Crear modelo de datos (tablas)
+from django.db import models
+
+class ServerMetric(models.Model):
+    """
+    Tabla para guardar el historial de salud de los servidores Proxmox.
+    Cada fila es una 'foto' del estado en un momento exacto.
+    """
+    node_name = models.CharField(max_length=50, verbose_name="Nombre del Nodo")
+    cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
+    ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
+    uptime = models.IntegerField(verbose_name="Tiempo Encendido (seg)")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
+
+    class Meta:
+        verbose_name = "Métrica de Servidor"
+        verbose_name_plural = "Métricas de Servidores"
+        ordering = ['-created_at'] # Lo más reciente primero
+
+    def __str__(self):
+        return f"{self.node_name} - {self.created_at.strftime('%H:%M:%S')} (CPU: {self.cpu_usage}%)"

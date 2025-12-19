@@ -1,10 +1,13 @@
-
 from django.contrib import admin
+# Asegúrate de importar los modelos correctos. 
+# Si borraste 'Server' o 'ServerMetrics' en models.py, bórralos de aquí también.
 from .models import (
     TipoRecurso, SistemaOperativo, ProxmoxServer, Nodo, RecursoFisico,
-    MaquinaVirtual, Server, ServerMetric, LocalMetric, ServerMetrics,
+    MaquinaVirtual, ServerMetric, LocalMetric, 
     AsignacionRecursosInicial, AuditoriaPeriodo, AuditoriaRecursosCabecera,
     AuditoriaRecursosDetalle, EstadisticaPeriodo, EstadisticaRecursos
+    # Nota: He quitado 'Server' y 'ServerMetrics' de la lista por si acaso causan conflicto,
+    # pero agrégalos si tus modelos aún existen.
 )
 
 # --- Registros para la Configuración de Infraestructura ---
@@ -14,14 +17,6 @@ class ProxmoxServerAdmin(admin.ModelAdmin):
     list_display = ('name', 'hostname', 'username', 'is_active', 'updated_at')
     list_filter = ('is_active',)
     search_fields = ('name', 'hostname')
-
-@admin.register(Server)
-class ServerAdmin(admin.ModelAdmin):
-    """
-    """
-    list_display = ('name', 'host', 'node', 'username', 'active')
-    list_filter = ('active',)
-    search_fields = ('name', 'host', 'node')
 
 @admin.register(Nodo)
 class NodoAdmin(admin.ModelAdmin):
@@ -35,28 +30,25 @@ class MaquinaVirtualAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'vm_type', 'is_monitored', 'nodo')
     search_fields = ('nombre', 'hostname', 'vmid')
 
-# --- Registros para ver las Métricas Recolectadas ---
+
+# Reemplazamos la configuración vieja de ServerMetric por la nueva que coincide con el nuevo modelo
 
 @admin.register(ServerMetric)
 class ServerMetricAdmin(admin.ModelAdmin):
     """
-    Aquí es donde 'tasks.py' guarda las métricas.
+    Tabla para el historial de salud de servidores Proxmox (SPADE).
     """
-    list_display = ('server', 'timestamp', 'cpu_usage', 'memory_usage', 'disk_usage')
-    list_filter = ('server', 'timestamp')
+    # Usamos los campos NUEVOS: node_name, cpu_usage, ram_usage, uptime, created_at
+    list_display = ('node_name', 'cpu_usage', 'ram_usage', 'uptime', 'created_at')
+    list_filter = ('node_name', 'created_at')
+    search_fields = ('node_name',)
+
+# --------------------------------------
 
 @admin.register(LocalMetric)
 class LocalMetricAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'cpu_usage', 'memory_usage', 'disk_usage')
     list_filter = ('timestamp',)
-
-@admin.register(ServerMetrics)
-class ServerMetricsAdmin(admin.ModelAdmin):
-    """
-   
-   """
-    list_display = ( 'timestamp', 'cpu_usage', 'memory_usage')
-    list_filter = ( 'timestamp',)
 
 # --- Registros para Modelos de Soporte ---
 
