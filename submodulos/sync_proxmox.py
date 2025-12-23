@@ -53,9 +53,15 @@ class ProxmoxSynchronizer:
         Sincroniza todos los datos: nodos, recursos y máquinas virtuales.
         Usa una transacción para garantizar la integridad de los datos.
         """
-        self.sync_nodes()
+        # 1. IMPORTANTE: Primero creamos los tipos de recursos
         self.sync_resource_types()
+        
+        # 2. Luego los nodos
+        self.sync_nodes()
+        
+        # 3. Finalmente las máquinas
         self.sync_vms()
+        
         return {
             'status': 'success',
             'message': 'Sincronización completada correctamente'
@@ -248,9 +254,9 @@ class ProxmoxSynchronizer:
             }
         )
         
-        # Si es una VM nueva, asignarle recursos iniciales
-        if created:
-            self.assign_initial_resources(node, vm, vm_data, vm_type)
+        # Si es una VM nueva o queremos actualizar recursos, asignarle recursos
+        # NOTA: Quitamos el "if created" para que actualice recursos si cambiaron
+        self.assign_initial_resources(node, vm, vm_data, vm_type)
         
         return vm
 
@@ -324,7 +330,7 @@ class ProxmoxSynchronizer:
                     cantidad_asignada=storage_gb
                 )
             
-            # Proceso similar para LXC, con ajustes específicos para contenedores
+            # Proceso para LXC (CORREGIDO PARA LEER CADENAS DE TEXTO)
             elif vm_type == 'lxc':
                 lxc_config = self.proxmox.nodes(node.nombre).lxc(vm.vmid).config.get()
                 
@@ -344,15 +350,29 @@ class ProxmoxSynchronizer:
                     cantidad_asignada=ram_mb
                 )
                 
-                # Asignar almacenamiento
-                storage_gb = lxc_config.get('rootfs', {}).get('size', '8G')
-                if isinstance(storage_gb, str):
-                    if 'G' in storage_gb:
-                        storage_gb = float(storage_gb.replace('G', ''))
-                    elif 'T' in storage_gb:
-                        storage_gb = float(storage_gb.replace('T', '')) * 1024
-                    else:
-                        storage_gb = 8  # Valor por defecto
+                # --- CORRECCION DISCO LXC ---
+                rootfs_data = lxc_config.get('rootfs', '')
+                storage_gb = 8  # Valor por defecto
+
+                # Caso 1: Proxmox devuelve texto (ej: "local-lvm:vm-100-disk-0,size=8G")
+                if isinstance(rootfs_data, str):
+                    parts = rootfs_data.split(',')
+                    for part in parts:
+                        if part.strip().startswith('size='):
+                            val_str = part.split('=')[1]
+                            if 'G' in val_str:
+                                storage_gb = float(val_str.replace('G', ''))
+                            elif 'T' in val_str:
+                                storage_gb = float(val_str.replace('T', '')) * 1024
+                            break
+                
+                # Caso 2: Proxmox devuelve diccionario (raro, pero posible)
+                elif isinstance(rootfs_data, dict):
+                    val_str = rootfs_data.get('size', '8G')
+                    if isinstance(val_str, str):
+                        if 'G' in val_str:
+                            storage_gb = float(val_str.replace('G', ''))
+                # -----------------------------
                 
                 AsignacionRecursosInicial.objects.create(
                     maquina_virtual=vm,
