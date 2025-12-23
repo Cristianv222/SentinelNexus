@@ -280,3 +280,11 @@ JAZZMIN_SETTINGS = {
         "submodulos.Nodo": "fas fa-network-wired", # <-- Esta línea faltaba
     },
 }
+
+# --- CONFIGURACION PROXMOX ---
+PROXMOX = {
+    'host': '10.100.100.40',     # <--- Pon la IP de tu Proxmox Físico
+    'user': 'root@pam',          # <--- Usamos root para ir a la segura
+    'password': 'Andres_zabala1983', # <--- ¡Pon la clave real aquí!
+    'verify_ssl': False
+}
