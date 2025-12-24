@@ -138,7 +138,7 @@ def monitor_all_proxmox_servers():
                 node_name = node['node']
                 node_status = proxmox.nodes(node_name).status.get()
                 
-                # Guardar métricas
+                # Guardar métricas del NODO
                 ServerMetrics.objects.create(
                     server=server,
                     cpu_usage=node_status.get('cpu', 0) * 100,
@@ -152,6 +152,21 @@ def monitor_all_proxmox_servers():
                     status='online'
                 )
                 
+                # --- NUEVO: Recolectar métricas de las VMs en este nodo ---
+                try:
+                    # 1. Qeme/KVM
+                    for vm in proxmox.nodes(node_name).qemu.get():
+                        if vm.get('status') == 'running':
+                            _save_vm_metric(vm, node_name, 'qemu')
+                    
+                    # 2. LXC Containers
+                    for ct in proxmox.nodes(node_name).lxc.get():
+                         if ct.get('status') == 'running':
+                            _save_vm_metric(ct, node_name, 'lxc')
+                            
+                except Exception as vm_e:
+                    logger.error(f"Error recolectando VMs en {node_name}: {vm_e}")
+
                 results.append(f"✓ {node_config['name']} - {node_name}")
                 
         except Exception as e:
@@ -159,3 +174,31 @@ def monitor_all_proxmox_servers():
             results.append(f"✗ {node_config.get('name', node_key)}: {str(e)}")
     
     return f"Monitoreo completado: {', '.join(results)}"
+
+def _save_vm_metric(vm_data, node_name, vm_type):
+    """Auxiliar para guardar métricas de VM/CT"""
+    from submodulos.models import MaquinaVirtual, VMMetric
+    
+    # Usamos VMMetric (el modelo simple compatible con lo que pidió el usuario)
+    # y buscamos/creamos la VM solo referencialmente por nombre
+    try:
+        # Calcular porcentajes
+        max_cpu = vm_data.get('cpus', 1)
+        current_cpu = vm_data.get('cpu', 0) # usually normalized 0-1 or 0-cpus
+        # Proxmox manda 'cpu' como 0.5 (50% de 1 core) o similar.
+        # Para display simple 0-100%:
+        cpu_pct = current_cpu * 100
+        
+        max_mem = vm_data.get('maxmem', 1)
+        cur_mem = vm_data.get('mem', 0)
+        ram_pct = (cur_mem / max_mem) * 100 if max_mem > 0 else 0
+        
+        VMMetric.objects.create(
+            vm_name=vm_data.get('name', f"VM-{vm_data.get('vmid')}"),
+            server_origin=node_name,
+            cpu_usage=cpu_pct,
+            ram_usage=ram_pct,
+            status=vm_data.get('status', 'unknown')
+        )
+    except Exception as e:
+        logger.error(f"Error guardando metric VM {vm_data.get('vmid')}: {e}")

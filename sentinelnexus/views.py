@@ -3289,213 +3289,186 @@ def api_vm_metrics_new(request, node_key, node_name, vmid):
 @login_required
 @csrf_exempt
 def api_metrics(request):
-    """API con conexión REAL a Proxmox - Versión completa"""
+    """API con conexión REAL a Proxmox - Versión optimizada con proxmox_manager"""
     from datetime import datetime
     from submodulos.models import ProxmoxServer
-    import requests
-    from requests.packages.urllib3.exceptions import InsecureRequestWarning # type: ignore
-    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+    from utils.proxmox_manager import proxmox_manager
     
     try:
-        servers = ProxmoxServer.objects.all().order_by('id')[:3]
+        servers = ProxmoxServer.objects.filter(is_active=True).order_by('id')[:3]
         servers_data = []
         
         for idx, server in enumerate(servers):
             try:
-                host = server.hostname
-                username = server.username
-                password = server.password
+                # Usar el manager centralizado para conexión
+                proxmox = proxmox_manager.get_connection(str(server.id))
                 
-                if '@' not in username:
-                    username = f"{username}@pam"
+                # Obtener primer nodo disponible
+                nodes_list = proxmox.nodes.get()
+                if not nodes_list:
+                    raise Exception("No hay nodos disponibles en este servidor")
                 
-                base_url = f"https://{host}:8006"
+                # Usar el nombre del nodo configurado o el primero que encontremos
+                node_name = server.node_name if server.node_name and any(n['node'] == server.node_name for n in nodes_list) else nodes_list[0]['node']
                 
-                auth_data = {
-                    'username': username,
-                    'password': password
-                }
+                # Obtener estado del nodo
+                status = proxmox.nodes(node_name).status.get()
                 
-                print(f"Conectando a {base_url} con usuario {username}")
+                # Métricas principales
+                cpu_raw = status.get('cpu')
+                cpu_usage = round(cpu_raw * 100, 1) if cpu_raw is not None else 0
                 
-                auth_response = requests.post(
-                    f"{base_url}/api2/json/access/ticket",
-                    data=auth_data,
-                    verify=False,
-                    timeout=10
-                )
+                mem_data = status.get('memory', {})
+                memory_used = mem_data.get('used') or 0
+                memory_total = mem_data.get('total') or 1
+                memory_percent = round((memory_used / memory_total) * 100, 1)
                 
-                if auth_response.status_code == 200:
-                    auth_result = auth_response.json()['data']
-                    ticket = auth_result['ticket']
-                    csrf_token = auth_result['CSRFPreventionToken']
-                    
-                    headers = {
-                        'Cookie': f"PVEAuthCookie={ticket}",
-                        'CSRFPreventionToken': csrf_token
-                    }
-                    
-                    nodes_response = requests.get(
-                        f"{base_url}/api2/json/nodes",
-                        headers=headers,
-                        verify=False
-                    )
-                    
-                    if nodes_response.status_code == 200:
-                        nodes = nodes_response.json()['data']
-                        if nodes:
-                            node_name = nodes[0]['node']
-                            
-                            status_response = requests.get(
-                                f"{base_url}/api2/json/nodes/{node_name}/status",
-                                headers=headers,
-                                verify=False
-                            )
-                            
-                            if status_response.status_code == 200:
-                                status = status_response.json()['data']
-                                
-                                # Métricas principales
-                                cpu_usage = round(status.get('cpu', 0) * 100, 1)
-                                memory_used = status.get('memory', {}).get('used', 0)
-                                memory_total = status.get('memory', {}).get('total', 1)
-                                memory_percent = round((memory_used / memory_total) * 100, 1) if memory_total > 0 else 0
-                                
-                                rootfs_used = status.get('rootfs', {}).get('used', 0)
-                                rootfs_total = status.get('rootfs', {}).get('total', 1)
-                                disk_percent = round((rootfs_used / rootfs_total) * 100, 1) if rootfs_total > 0 else 0
+                disk_data = status.get('rootfs', {})
+                rootfs_used = disk_data.get('used') or 0
+                rootfs_total = disk_data.get('total') or 1
+                disk_percent = round((rootfs_used / rootfs_total) * 100, 1)
 
-                                # Red - calcular velocidad actual
-                                network_in_bytes = status.get('netin', 0)
-                                network_out_bytes = status.get('netout', 0)
-                                
-                                # Para calcular Mbps actual, necesitamos comparar con medición anterior
-                                # Por ahora, usar un valor estimado basado en el total
-                                network_out_mbps = round(network_out_bytes / (1024 * 1024 * status.get('uptime', 1)) * 8, 2)
-                                if network_out_mbps > 1000:  # Si es muy alto, probablemente es un cálculo erróneo
-                                    network_out_mbps = round(network_out_mbps / 100, 2)
-                                
-                                # VMs
-                                vms_response = requests.get(
-                                    f"{base_url}/api2/json/nodes/{node_name}/qemu",
-                                    headers=headers,
-                                    verify=False
-                                )
-                                
-                                vms = []
-                                active_vms = 0
-                                total_vms = 0
-                                if vms_response.status_code == 200:
-                                    vms = vms_response.json()['data']
-                                    total_vms = len(vms)
-                                    active_vms = sum(1 for vm in vms if vm.get('status') == 'running')
-                                
-                                # Contenedores LXC
-                                lxc_response = requests.get(
-                                    f"{base_url}/api2/json/nodes/{node_name}/lxc",
-                                    headers=headers,
-                                    verify=False
-                                )
-                                
-                                if lxc_response.status_code == 200:
-                                    lxc_containers = lxc_response.json()['data']
-                                    total_vms += len(lxc_containers)
-                                    active_vms += sum(1 for lxc in lxc_containers if lxc.get('status') == 'running')
-                                
-                                # Datos históricos RRD
-                                rrd_response = requests.get(
-                                    f"{base_url}/api2/json/nodes/{node_name}/rrddata?timeframe=hour",
-                                    headers=headers,
-                                    verify=False
-                                )
-                                
-                                timestamps = []
-                                cpu_history = []
-                                mem_history = []
-                                
-                                if rrd_response.status_code == 200:
-                                    rrd_data = rrd_response.json()['data']
-                                    for point in rrd_data[-10:]:
-                                        time_str = datetime.fromtimestamp(point['time']).strftime('%H:%M')
-                                        timestamps.append(time_str)
-                                        cpu_history.append(round(point.get('cpu', 0) * 100, 1))
-                                        
-                                        mem_used_hist = point.get('memused', 0)
-                                        mem_total_hist = point.get('memtotal', 1)
-                                        mem_percent_hist = round((mem_used_hist / mem_total_hist) * 100, 1) if mem_total_hist > 0 else 0
-                                        mem_history.append(mem_percent_hist)
-                                
-                                if len(timestamps) < 5:
-                                    timestamps = ['14:00', '14:15', '14:30', '14:45', '15:00']
-                                    cpu_history = [cpu_usage-2, cpu_usage-1, cpu_usage, cpu_usage+1, cpu_usage]
-                                    mem_history = [memory_percent-2, memory_percent-1, memory_percent, memory_percent+1, memory_percent]
-                                
-                                # Construir información completa del servidor
-                                server_info = {
-                                    'id': server.id,
-                                    'name': server.name,
-                                    'node': node_name,
-                                    'online': True,
-                                    'metrics': {
-                                        'cpu': {
-                                            'usage': cpu_usage,
-                                            'cores': status.get('cpuinfo', {}).get('cores', 0),
-                                            'model': status.get('cpuinfo', {}).get('model', 'Unknown'),
-                                            'sockets': status.get('cpuinfo', {}).get('sockets', 1),
-                                            'mhz': status.get('cpuinfo', {}).get('mhz', 'Unknown')
-                                        },
-                                        'memory': {
-                                            'percent': memory_percent,
-                                            'used_gb': round(memory_used / (1024**3), 1) if memory_used else 0,
-                                            'total_gb': round(memory_total / (1024**3), 1) if memory_total else 0,
-                                            'free_gb': round((memory_total - memory_used) / (1024**3), 1) if memory_total > memory_used else 0
-                                        },
-                                        'disk': {
-                                            'percent': disk_percent,
-                                            'used_tb': round(rootfs_used / (1024**4), 2) if rootfs_used else 0,
-                                            'total_tb': round(rootfs_total / (1024**4), 2) if rootfs_total else 0,
-                                            'free_tb': round((rootfs_total - rootfs_used) / (1024**4), 2) if rootfs_total > rootfs_used else 0,
-                                            'used_gb': round(rootfs_used / (1024**3), 1) if rootfs_used else 0,
-                                            'total_gb': round(rootfs_total / (1024**3), 1) if rootfs_total else 0
-                                        },
-                                        'network': {
-                                            'in': network_in_bytes,
-                                            'out': network_out_bytes,
-                                            'out_mbps': network_out_mbps
-                                        },
-                                        'swap': {
-                                            'used': status.get('swap', {}).get('used', 0),
-                                            'total': status.get('swap', {}).get('total', 0),
-                                            'percent': round((status.get('swap', {}).get('used', 0) / 
-                                                           max(status.get('swap', {}).get('total', 1), 1)) * 100, 1)
-                                        }
-                                    },
-                                    'vms': {
-                                        'total': total_vms,
-                                        'active': active_vms
-                                    },
-                                    'uptime': format_uptime(status.get('uptime', 0)),
-                                    'load': status.get('loadavg', ['0', '0', '0']),
-                                    'kernel': status.get('kversion', 'Unknown'),
-                                    'pve_version': status.get('pveversion', 'Unknown'),
-                                    'history': {
-                                        'timestamps': timestamps,
-                                        'cpu': cpu_history,
-                                        'memory': mem_history
-                                    }
-                                }
-                                
-                            else:
-                                raise Exception(f"Error obteniendo estado: {status_response.status_code}")
-                        else:
-                            raise Exception("No hay nodos disponibles")
-                    else:
-                        raise Exception(f"Error obteniendo nodos: {nodes_response.status_code}")
-                else:
-                    raise Exception(f"Auth failed: {auth_response.status_code}")
+                # Red - calcular velocidad actual (Estimación)
+                network_in_bytes = status.get('netin') or 0
+                network_out_bytes = status.get('netout') or 0
+                uptime = status.get('uptime') or 1
+                if uptime < 1: uptime = 1
+                
+                # Cálculo simple de media histórica si no hay delta
+                # Idealmente deberíamos comparar con la última lectura, pero por ahora:
+                network_out_mbps = round(network_out_bytes / (1024 * 1024 * uptime) * 8, 2)
+                # Corrección heurística si el valor es absurdo (picos de inicio)
+                if network_out_mbps > 1000: 
+                    network_out_mbps = round(network_out_mbps / 100, 2)
+                
+                # Obtener VMs (QEMU)
+                try:
+                    qemu_vms = proxmox.nodes(node_name).qemu.get()
+                    active_vms = sum(1 for vm in qemu_vms if vm.get('status') == 'running')
+                except:
+                    qemu_vms = []
+                    active_vms = 0
+                
+                # Obtener Contenedores (LXC)
+                try:
+                    lxc_containers = proxmox.nodes(node_name).lxc.get()
+                    active_vms += sum(1 for ct in lxc_containers if ct.get('status') == 'running')
+                except:
+                    lxc_containers = []
+                
+                total_vms = len(qemu_vms) + len(lxc_containers)
+                
+                # Datos históricos RRD (1 hora)
+                try:
+                    # RRD puede fallar si no hay datos, manejar gracefully
+                    rrd_data = proxmox.nodes(node_name).rrddata.get(timeframe='hour')
+                except Exception as e:
+                    print(f"DEBUG RRD ERROR {server.name}: {str(e)}")
+                    rrd_data = [] 
+                
+                timestamps = []
+                cpu_history = []
+                mem_history = []
+                
+                for point in rrd_data:
+                    # Filtrar puntos vacíos o corruptos
+                    if not isinstance(point, dict): continue
+                    
+                    try:
+                        ts = point.get('time')
+                        if not ts: continue
+                        
+                        time_str = datetime.fromtimestamp(ts).strftime('%H:%M')
+                        timestamps.append(time_str)
+                        
+                        # Handle potential None values safely
+                        cpu_val = point.get('cpu')
+                        if cpu_val is None: cpu_val = 0
+                        cpu_history.append(round(cpu_val * 100, 1))
+                        
+                        m_used = point.get('memused')
+                        if m_used is None: m_used = 0
+                        
+                        m_total = point.get('memtotal')
+                        if m_total is None or m_total <= 0: m_total = 1
+                        
+                        m_pct = round((m_used / m_total) * 100, 1)
+                        mem_history.append(m_pct)
+                    except:
+                        continue 
+
+                # Limitar a los últimos 12 puntos (1 hora aprox si son cada 5 min)
+                if len(timestamps) > 12:
+                    timestamps = timestamps[-12:]
+                    cpu_history = cpu_history[-12:]
+                    mem_history = mem_history[-12:]
+
+                # Relleno si no hay suficientes datos
+                if len(timestamps) < 2:
+                    current_time = datetime.now()
+                    timestamps = [current_time.strftime('%H:%M')]
+                    cpu_history = [cpu_usage]
+                    mem_history = [memory_percent]
+                
+                # Construir información completa del servidor
+                server_info = {
+                    'id': server.id,
+                    'name': server.name,
+                    'node': node_name,
+                    'online': True,
+                    'metrics': {
+                        'cpu': {
+                            'usage': cpu_usage,
+                            'cores': status.get('cpuinfo', {}).get('cores', 0),
+                            'model': status.get('cpuinfo', {}).get('model', 'Unknown'),
+                            'sockets': status.get('cpuinfo', {}).get('sockets', 1),
+                            'mhz': status.get('cpuinfo', {}).get('mhz', 'Unknown')
+                        },
+                        'memory': {
+                            'percent': memory_percent,
+                            'used_gb': round(memory_used / (1024**3), 1) if memory_used else 0,
+                            'total_gb': round(memory_total / (1024**3), 1) if memory_total else 0,
+                            'free_gb': round((memory_total - memory_used) / (1024**3), 1) if memory_total > memory_used else 0
+                        },
+                        'disk': {
+                            'percent': disk_percent,
+                            'used_tb': round(rootfs_used / (1024**4), 2) if rootfs_used else 0,
+                            'total_tb': round(rootfs_total / (1024**4), 2) if rootfs_total else 0,
+                            'free_tb': round((rootfs_total - rootfs_used) / (1024**4), 2) if rootfs_total > rootfs_used else 0,
+                            'used_gb': round(rootfs_used / (1024**3), 1) if rootfs_used else 0,
+                            'total_gb': round(rootfs_total / (1024**3), 1) if rootfs_total else 0
+                        },
+                        'network': {
+                            'in': network_in_bytes,
+                            'out': network_out_bytes,
+                            'out_mbps': network_out_mbps
+                        },
+                        'swap': {
+                            'used': status.get('swap', {}).get('used', 0),
+                            'total': status.get('swap', {}).get('total', 0),
+                            'percent': round((status.get('swap', {}).get('used', 0) / 
+                                           max(status.get('swap', {}).get('total', 1), 1)) * 100, 1)
+                        }
+                    },
+                    'vms': {
+                        'total': total_vms,
+                        'active': active_vms
+                    },
+                    'uptime': format_uptime(status.get('uptime', 0)),
+                    'load': status.get('loadavg', ['0', '0', '0']),
+                    'kernel': status.get('kversion', 'Unknown'),
+                    'pve_version': status.get('pveversion', 'Unknown'),
+                    'history': {
+                        'timestamps': timestamps,
+                        'cpu': cpu_history,
+                        'memory': mem_history
+                    }
+                }
                     
             except Exception as e:
-                print(f"Error con servidor {server.name}: {str(e)}")
+                import traceback
+                print(f"DEBUG CONNECTION ERROR {server.name}: {str(e)}")
+                # traceback.print_exc()
                 server_info = {
                     'id': server.id,
                     'name': server.name,
@@ -3523,21 +3496,19 @@ def api_metrics(request):
                 'node': f'pve{idx+1}',
                 'online': False,
                 'metrics': {
-                    'cpu': {'usage': 0, 'cores': 0},
-                    'memory': {'percent': 0, 'total_gb': 0},
-                    'disk': {'percent': 0, 'total_tb': 0, 'total_gb': 0},
+                    'cpu': {'usage': 0},
+                    'memory': {'percent': 0},
+                    'disk': {'percent': 0},
                     'network': {'out_mbps': 0}
                 },
-                'vms': {'total': 0, 'active': 0},
-                'uptime': '--',
                 'history': {'timestamps': [], 'cpu': [], 'memory': []}
             })
         
         comparison_data = {
             'labels': [s['name'] for s in servers_data],
-            'cpu': [s['metrics']['cpu']['usage'] for s in servers_data],
-            'memory': [s['metrics']['memory']['percent'] for s in servers_data],
-            'disk': [s['metrics']['disk']['percent'] for s in servers_data]
+            'cpu': [s['metrics']['cpu']['usage'] if s.get('online') else 0 for s in servers_data],
+            'memory': [s['metrics']['memory']['percent'] if s.get('online') else 0 for s in servers_data],
+            'disk': [s['metrics']['disk']['percent'] if s.get('online') else 0 for s in servers_data]
         }
         
         return JsonResponse({
@@ -3589,123 +3560,144 @@ def process_rrd_data(rrd_data):
 def get_server_vms(request, server_id):
     """Obtiene las VMs reales de un servidor"""
     from submodulos.models import ProxmoxServer
-    import requests
+    from utils.proxmox_manager import proxmox_manager
+    from django.http import JsonResponse
     
     try:
-        server = ProxmoxServer.objects.get(id=server_id)
+        # Intentar obtener por ID, si falla, intentar por índice (1-3)
+        try:
+            server = ProxmoxServer.objects.get(id=server_id)
+        except ProxmoxServer.DoesNotExist:
+            # Fallback para when el frontend envía índices 1, 2, 3 en lugar de IDs reales
+            # Usar mismo filtro que api_metrics para consistencia de índices
+            all_servers = ProxmoxServer.objects.filter(is_active=True).order_by('id')
+            try:
+                idx = int(server_id) - 1
+                if 0 <= idx < all_servers.count():
+                    server = all_servers[idx]
+                else:
+                    return JsonResponse({"success": False, "error": f"Servidor {server_id} no encontrado"})
+            except ValueError:
+                 return JsonResponse({"success": False, "error": f"ID inválido: {server_id}"})
         
-        # Autenticación con Proxmox
-        username = server.username if '@' in server.username else f"{server.username}@pam"
-        auth_data = {'username': username, 'password': server.password}
-        base_url = f"https://{server.hostname}:8006"
+        proxmox = proxmox_manager.get_connection(str(server.id))
         
-        auth_response = requests.post(
-            f"{base_url}/api2/json/access/ticket",
-            data=auth_data,
-            verify=False
-        )
+        nodes_list = proxmox.nodes.get()
+        target_node = None
         
-        if auth_response.status_code == 200:
-            auth_result = auth_response.json()['data']
-            headers = {
-                'Cookie': f"PVEAuthCookie={auth_result['ticket']}",
-                'CSRFPreventionToken': auth_result['CSRFPreventionToken']
-            }
+        if server.node_name:
+             for n in nodes_list:
+                 if n["node"] == server.node_name:
+                     target_node = n["node"]
+                     break
+        
+        if not target_node and nodes_list:
+            target_node = nodes_list[0]["node"]
             
-            # Obtener nodos
-            nodes_response = requests.get(f"{base_url}/api2/json/nodes", headers=headers, verify=False)
-            if nodes_response.status_code == 200:
-                nodes = nodes_response.json()['data']
-                vms_data = []
-                
-                for node in nodes:
-                    node_name = node['node']
-                    
-                    # Obtener VMs QEMU
-                    qemu_response = requests.get(
-                        f"{base_url}/api2/json/nodes/{node_name}/qemu",
-                        headers=headers,
-                        verify=False
-                    )
-                    
-                    if qemu_response.status_code == 200:
-                        qemu_vms = qemu_response.json()['data']
-                        
-                        for vm in qemu_vms:
-                            # Obtener config de cada VM
-                            vm_config_response = requests.get(
-                                f"{base_url}/api2/json/nodes/{node_name}/qemu/{vm['vmid']}/config",
-                                headers=headers,
-                                verify=False
-                            )
-                            
-                            vm_config = {}
-                            if vm_config_response.status_code == 200:
-                                vm_config = vm_config_response.json()['data']
-                            
-                            # Obtener IP de la VM si es posible
-                            vm_ip = 'Sin IP'
-                            agent_response = requests.get(
-                                f"{base_url}/api2/json/nodes/{node_name}/qemu/{vm['vmid']}/agent/network-get-interfaces",
-                                headers=headers,
-                                verify=False
-                            )
-                            if agent_response.status_code == 200:
-                                try:
-                                    interfaces = agent_response.json()['data']['result']
-                                    for iface in interfaces:
-                                        if 'ip-addresses' in iface:
-                                            for ip_info in iface['ip-addresses']:
-                                                if ip_info['ip-address-type'] == 'ipv4' and not ip_info['ip-address'].startswith('127.'):
-                                                    vm_ip = ip_info['ip-address']
-                                                    break
-                                except:
-                                    pass
-                            
-                            vms_data.append({
-                                'id': f'vm-{server_id}-{vm["vmid"]}',
-                                'vmid': vm['vmid'],
-                                'name': vm.get('name', f'VM-{vm["vmid"]}'),
-                                'status': vm.get('status', 'unknown'),
-                                'cpu': round(vm.get('cpu', 0) * 100, 1),
-                                'memory': round((vm.get('mem', 0) / max(vm.get('maxmem', 1), 1)) * 100, 1),
-                                'disk': round((vm.get('disk', 0) / max(vm.get('maxdisk', 1), 1)) * 100, 1),
-                                'uptime': format_uptime(vm.get('uptime', 0)),
-                                'cores': vm_config.get('cores', vm.get('cpus', 1)),
-                                'max_memory_gb': round(vm.get('maxmem', 0) / (1024**3), 1),
-                                'max_disk_gb': round(vm.get('maxdisk', 0) / (1024**3), 1),
-                                'ip': vm_ip
-                            })
-                    
-                    # Obtener contenedores LXC
-                    lxc_response = requests.get(
-                        f"{base_url}/api2/json/nodes/{node_name}/lxc",
-                        headers=headers,
-                        verify=False
-                    )
-                    
-                    if lxc_response.status_code == 200:
-                        lxc_containers = lxc_response.json()['data']
-                        for lxc in lxc_containers:
-                            vms_data.append({
-                                'id': f'lxc-{server_id}-{lxc["vmid"]}',
-                                'vmid': lxc['vmid'],
-                                'name': lxc.get('name', f'CT-{lxc["vmid"]}'),
-                                'status': lxc.get('status', 'unknown'),
-                                'cpu': round(lxc.get('cpu', 0) * 100, 1),
-                                'memory': round((lxc.get('mem', 0) / max(lxc.get('maxmem', 1), 1)) * 100, 1),
-                                'disk': round((lxc.get('disk', 0) / max(lxc.get('maxdisk', 1), 1)) * 100, 1),
-                                'uptime': format_uptime(lxc.get('uptime', 0)),
-                                'type': 'lxc',
-                                'ip': 'Container'
-                            })
-                
-                return JsonResponse({'success': True, 'vms': vms_data})
+        if not target_node:
+            return JsonResponse({"success": False, "error": "No active nodes found"})
+            
+        vms_data = []
         
-        return JsonResponse({'success': False, 'error': 'Auth failed'})
-        
+        def safe_pct(used, total):
+            if not total or total <= 0: return 0
+            return round((used / total) * 100, 1)
+
+        def format_uptime_internal(seconds):
+            if not seconds: return "--"
+            days = int(seconds // 86400)
+            hours = int((seconds % 86400) // 3600)
+            mins = int((seconds % 3600) // 60)
+            if days > 0: return f"{days}d {hours}h"
+            if hours > 0: return f"{hours}h {mins}m"
+            return f"{mins}m"
+
+        try:
+            qemu_vms = proxmox.nodes(target_node).qemu.get()
+        except:
+            qemu_vms = []
+            
+        for vm in qemu_vms:
+            try:
+                vmid = vm.get("vmid")
+                try:
+                    status_data = proxmox.nodes(target_node).qemu(vmid).status.current.get()
+                except:
+                    status_data = vm
+                
+                cpu_usage = round(status_data.get("cpu", 0) * 100, 1)
+                mem_pct = safe_pct(status_data.get("mem", 0), status_data.get("maxmem", 1))
+                disk_pct = safe_pct(status_data.get("disk", 0), status_data.get("maxdisk", 1))
+                uptime_val = status_data.get("uptime", 0)
+                
+                ip_address = "Sin IP"
+                if vm.get("status") == "running":
+                    try:
+                        iframes = proxmox.nodes(target_node).qemu(vmid).agent("network-get-interfaces").get()
+                        for iface in iframes.get("result", []):
+                            if "ip-addresses" in iface:
+                                for ip_info in iface["ip-addresses"]:
+                                    if ip_info["ip-address-type"] == "ipv4" and not ip_info["ip-address"].startswith("127."):
+                                        ip_address = ip_info["ip-address"]
+                                        break
+                            if ip_address != "Sin IP": break
+                    except:
+                        pass
+
+                vms_data.append({
+                    "id": f"vm-{server_id}-{vmid}",
+                    "vmid": vmid,
+                    "name": vm.get("name", f"VM {vmid}"),
+                    "status": vm.get("status", "unknown"),
+                    "cpu": cpu_usage,
+                    "memory": mem_pct,
+                    "disk": disk_pct,
+                    "uptime": format_uptime_internal(uptime_val),
+                    "ip": ip_address
+                })
+            except Exception as e:
+                continue
+
+        try:
+            lxc_cts = proxmox.nodes(target_node).lxc.get()
+        except:
+            lxc_cts = []
+            
+        for ct in lxc_cts:
+            try:
+                vmid = ct.get("vmid")
+                try:
+                    status_data = proxmox.nodes(target_node).lxc(vmid).status.current.get()
+                except:
+                    status_data = ct
+
+                cpu_usage = round(status_data.get("cpu", 0) * 100, 1)
+                mem_pct = safe_pct(status_data.get("mem", 0), status_data.get("maxmem", 1))
+                disk_pct = safe_pct(status_data.get("disk", 0), status_data.get("maxdisk", 1))
+                uptime_val = status_data.get("uptime", 0)
+                
+                vms_data.append({
+                    "id": f"lxc-{server_id}-{vmid}",
+                    "vmid": vmid,
+                    "name": ct.get("name", f"CT {vmid}"),
+                    "status": ct.get("status", "unknown"),
+                    "cpu": cpu_usage,
+                    "memory": mem_pct,
+                    "disk": disk_pct,
+                    "uptime": format_uptime_internal(uptime_val),
+                    "ip": "Container" 
+                })
+            except:
+                continue
+                
+        return JsonResponse({"success": True, "vms": vms_data})
+
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"success": False, "error": str(e)})
+
+
 
 @login_required
 def metrics_dashboard(request):
@@ -4055,3 +4047,96 @@ def vms_metrics_api(request):
         return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"vms": data})
+
+@login_required
+def data_dashboard(request):
+    """
+    Dashboard para visualizar y exportar datos históricos
+    """
+    from submodulos.models import ProxmoxServer, Nodo
+    
+    # Recopilar datos resumen para mostrar en el dashboard
+    servers = ProxmoxServer.objects.all()
+    nodes = Nodo.objects.all()
+    
+    context = {
+        'page_title': 'Panel de Datos',
+        'active_tab': 'data',
+        'servers_count': servers.count(),
+        'nodes_count': nodes.count(),
+        'servers': servers,
+        'nodes': nodes
+    }
+    return render(request, 'data_dashboard.html', context)
+
+@login_required
+def export_data_csv(request):
+    """
+    Exporta datos de métricas a CSV
+    """
+    import csv
+    from django.http import HttpResponse
+    from datetime import datetime
+    
+    response = HttpResponse(content_type='text/csv')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    response['Content-Disposition'] = f'attachment; filename="sentinelnexus_metrics_{timestamp}.csv"'
+    
+    writer = csv.writer(response)
+    # Cabeceras
+    writer.writerow(['Timestamp', 'Tipo', 'Entidad', 'Servidor/Nodo', 'Métrica', 'Valor', 'Unidad'])
+    
+    from submodulos.models import ProxmoxServer
+    from utils.proxmox_manager import proxmox_manager
+    
+    servers = ProxmoxServer.objects.filter(is_active=True)
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    for server in servers:
+        # 1. Exportar datos del Servidor
+        writer.writerow([current_time, 'Server', server.name, server.node_name, 'Status', 'Online', 'State'])
+        writer.writerow([current_time, 'Server', server.name, server.node_name, 'CPU Cores', server.cpu_cores, 'Count'])
+        
+        # 2. Exportar datos de sus VMs
+        try:
+             proxmox = proxmox_manager.get_connection(str(server.id))
+             # Nodo objetivo
+             nodes = proxmox.nodes.get()
+             target_node = server.node_name if server.node_name and any(n['node'] == server.node_name for n in nodes) else nodes[0]['node']
+             
+             # VMs y LXC
+             for vm_type in ['qemu', 'lxc']:
+                 try:
+                     vms_list = getattr(proxmox.nodes(target_node), vm_type).get()
+                     for vm in vms_list:
+                         vmid = vm.get('vmid')
+                         # Intentar obtener status rápido
+                         try:
+                             # Para exportación masiva, usamos datos básicos de la lista para no saturar con miles de llamadas
+                             # o hacemos una llamada ligera si es necesario.
+                             # Usamos los datos de lista que ya suelen tener cpu/mem current
+                             
+                             vm_name = vm.get('name', f"{vm_type}-{vmid}")
+                             status = vm.get('status', 'unknown')
+                             
+                             # Convert to percentages/values if present
+                             # QEMU list often has 'cpu' as ratio (0.05 = 5%)
+                             cpu = round(vm.get('cpu', 0) * 100, 2)
+                             
+                             # Memory is often bytes
+                             maxmem = vm.get('maxmem', 1)
+                             mem = vm.get('mem', 0)
+                             mem_pct = round((mem/maxmem)*100, 2) if maxmem > 0 else 0
+                             
+                             writer.writerow([current_time, 'VM', vm_name, server.name, 'Status', status, 'State'])
+                             if status == 'running':
+                                 writer.writerow([current_time, 'VM', vm_name, server.name, 'CPU Usage', cpu, '%'])
+                                 writer.writerow([current_time, 'VM', vm_name, server.name, 'RAM Usage', mem_pct, '%'])
+                         except Exception as e:
+                             continue
+                 except: 
+                     pass
+        except:
+             writer.writerow([current_time, 'Server', server.name, server.node_name, 'Error', 'Connection Failed', 'Error'])
+        
+    return response

@@ -45,6 +45,10 @@ urlpatterns = [
     
     # Dashboard de métricas - USA: metrics_dashboard.html
     path('metrics/', views.metrics_dashboard, name='metrics_dashboard'),
+
+    # Dashboard de datos - USA: data_dashboard.html
+    path('data/', views.data_dashboard, name='data_dashboard'),
+    path('data/export/', views.export_data_csv, name='export_data_csv'),
     
     # ========== RUTAS LEGACY (COMPATIBILIDAD) ==========
     

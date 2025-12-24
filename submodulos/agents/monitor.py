@@ -1,6 +1,7 @@
 import time
 import asyncio
 import slixmpp
+import json
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from spade.message import Message
@@ -22,7 +23,6 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
 
 class MonitorAgent(Agent):
     
-    # 🌟 AQUÍ ESTÁ LA MAGIA: Recibimos los datos del servidor al crear el agente
     def __init__(self, jid, password, proxmox_ip, proxmox_user, proxmox_pass):
         super().__init__(jid, password)
         self.proxmox_ip = proxmox_ip
@@ -31,9 +31,7 @@ class MonitorAgent(Agent):
 
     class ComportamientoVigilancia(CyclicBehaviour):
         async def run(self):
-            # Usamos las variables que guardamos en "self.agent"
             ip = self.agent.proxmox_ip
-            print(f"👁️ MONITOR ({ip}): Conectando...")
             
             try:
                 proxmox = ProxmoxAPI(
@@ -41,42 +39,70 @@ class MonitorAgent(Agent):
                     user=self.agent.proxmox_user,
                     password=self.agent.proxmox_pass,
                     verify_ssl=False,
-                    timeout=5 # Timeout corto por si el server está apagado
+                    timeout=5 
                 )
                 
                 nodes = proxmox.nodes.get()
                 if not nodes:
-                    print(f"⚠️ ({ip}) No se encontraron nodos.")
                     return
 
                 nombre_nodo = nodes[0]['node']
                 status = proxmox.nodes(nombre_nodo).status.get()
                 
+                # Métricas del Nodo
                 cpu_uso = status.get('cpu', 0) * 100
                 mem_total = status['memory']['total']
                 mem_usada = status['memory']['used']
-                ram_uso = (mem_usada / mem_total) * 100
+                ram_uso = (mem_usada / mem_total) * 100 if mem_total > 0 else 0
                 uptime = status.get('uptime', 0)
 
-                # Enviamos el mensaje
-                reporte = (
-                    f"📡 NODO: {nombre_nodo} | "
-                    f"🔥 CPU: {cpu_uso:.2f}% | "
-                    f"🧠 RAM: {ram_uso:.2f}% | "
-                    f"⏱️ UP: {uptime}s"
-                )
+                # RECOLECCIÓN DE VMs
+                vms_data = []
+                try:
+                    qemu_vms = proxmox.nodes(nombre_nodo).qemu.get()
+                    for vm in qemu_vms:
+                        vmid = vm.get('vmid')
+                        name = vm.get('name', f'VM-{vmid}')
+                        vm_status = vm.get('status', 'unknown')
+                        
+                        vm_cpu = vm.get('cpu', 0)
+                        if vm_cpu is None: vm_cpu = 0
+                        vm_cpu = vm_cpu * 100 
+                        
+                        vm_mem_max = vm.get('maxmem', 1)
+                        vm_mem = vm.get('mem', 0)
+                        if vm_mem is None: vm_mem = 0
+                        vm_ram_pct = (vm_mem / vm_mem_max) * 100 if vm_mem_max > 0 else 0
+                        
+                        vms_data.append({
+                            'name': name,
+                            'cpu': vm_cpu,
+                            'ram': vm_ram_pct,
+                            'status': vm_status
+                        })
+                except Exception as e:
+                    print(f"⚠️ Error VMs {nombre_nodo}: {e}")
+
+                payload = {
+                    "node": nombre_nodo,
+                    "cpu": cpu_uso,
+                    "ram": ram_uso,
+                    "uptime": uptime,
+                    "vms": vms_data
+                }
+
+                json_body = json.dumps(payload)
                 
-                print(f"✅ ({ip}) REPORTE ENVIADO")
+                print(f"✅ ({ip}) ENVIANDO DATOS (Con {len(vms_data)} VMs)")
 
                 msg = Message(to="cerebro@sentinelnexus.local")
                 msg.set_metadata("performative", "inform")
-                msg.body = reporte
+                msg.body = json_body
                 await self.send(msg)
 
             except Exception as e:
                 print(f"❌ ERROR ({ip}): {e}")
             
-            # Cada agente espera 15 segundos para no saturar la red todos a la vez
             await asyncio.sleep(15)
 
     async def setup(self):

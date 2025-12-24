@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Panel de Datos - SentinelNexus{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="background: #0f172a; min-height: 100vh; padding: 30px;">
+    
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="display-5 text-white mb-2">
+                    <i class="fas fa-database me-3" style="color: #3498db;"></i>
+                    Explorador de Datos
+                </h1>
+                <p class="text-muted mb-0">Conexión a bases de datos externas y exportación de métricas</p>
+            </div>
+            <div>
+                 <button class="btn btn-outline-light me-2" onclick="refreshData()">
+                    <i class="fas fa-sync-alt me-2"></i>Actualizar
+                </button>
+                <a href="{% url 'export_data_csv' %}" class="btn btn-primary">
+                    <i class="fas fa-download me-2"></i>Exportar CSV
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Panel de Conexión -->
+        <div class="col-md-4 mb-4">
+            <div class="card h-100" style="background: #1e293b; border: 1px solid #334155; border-radius: 12px;">
+                <div class="card-header border-0 bg-transparent pt-4 px-4">
+                    <h5 class="card-title text-white">
+                        <i class="fas fa-plug me-2" style="color: #2ecc71;"></i>Conexión DB Externa
+                    </h5>
+                </div>
+                <div class="card-body px-4">
+                    <form id="db-connection-form">
+                        <div class="mb-3">
+                            <label class="form-label text-light">Tipo de Base de Datos</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="db-type">
+                                <option value="postgresql">PostgreSQL (Recomendado)</option>
+                                <option value="mysql">MySQL / MariaDB</option>
+                                <option value="sqlite">SQLite</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light">Host / IP</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fas fa-server"></i></span>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" id="db-host" placeholder="192.168.x.x">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label text-light">Base de Datos</label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" id="db-name" placeholder="sentinel_logs">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label text-light">Puerto</label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" id="db-port" placeholder="5432">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light">Usuario</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="db-user" placeholder="admin">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light">Contraseña</label>
+                            <input type="password" class="form-control bg-dark text-white border-secondary" id="db-pass">
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="button" class="btn btn-success" onclick="testConnection()">
+                                <i class="fas fa-check-circle me-2"></i>Probar Conexión
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="connection-status" class="mt-3 text-center" style="display: none;">
+                        <span class="badge bg-warning text-dark">Conectando...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vista Previa de Datos -->
+        <div class="col-md-8 mb-4">
+            <div class="card h-100" style="background: #1e293b; border: 1px solid #334155; border-radius: 12px;">
+                <div class="card-header border-0 bg-transparent pt-4 px-4 d-flex justify-content-between">
+                    <h5 class="card-title text-white">
+                        <i class="fas fa-table me-2" style="color: #3498db;"></i>Vista Previa de Datos
+                    </h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary active" onclick="setView('table')"><i class="fas fa-list"></i></button>
+                        <button class="btn btn-outline-secondary" onclick="setView('chart')"><i class="fas fa-chart-line"></i></button>
+                    </div>
+                </div>
+                <div class="card-body px-4">
+                    <div class="table-responsive" id="data-table-container">
+                        <table class="table table-dark table-hover table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Servidor</th>
+                                    <th>Evento</th>
+                                    <th>Severidad</th>
+                                    <th>Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="data-preview-body">
+                                <!-- Datos de ejemplo -->
+                                <tr>
+                                    <td class="text-muted">2023-10-27 10:00:01</td>
+                                    <td>Proxmox-Main</td>
+                                    <td>CPU Load High</td>
+                                    <td><span class="badge bg-danger">Critical</span></td>
+                                    <td>95%</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">2023-10-27 10:05:22</td>
+                                    <td>Proxmox-Backup</td>
+                                    <td>Backup Completed</td>
+                                    <td><span class="badge bg-success">Info</span></td>
+                                    <td>OK</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">2023-10-27 10:15:10</td>
+                                    <td>Proxmox-Sec</td>
+                                    <td>Network Spike</td>
+                                    <td><span class="badge bg-warning">Warning</span></td>
+                                    <td>850 Mbps</td>
+                                </tr>
+                                <tr><td colspan="5" class="text-center text-muted">Conéctese a una base de datos para ver más registros...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="data-chart-container" style="display: none; height: 300px;">
+                        <canvas id="dataChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Estadísticas Rápidas -->
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="card p-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 12px; color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Registros Totales</h6>
+                        <h3 class="mb-0 fw-bold">1,245</h3>
+                    </div>
+                    <div style="font-size: 2rem; opacity: 0.5;"><i class="fas fa-file-alt"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card p-3" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border: none; border-radius: 12px; color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Estado de Conexión</h6>
+                        <h3 class="mb-0 fw-bold">Activo</h3>
+                    </div>
+                    <div style="font-size: 2rem; opacity: 0.5;"><i class="fas fa-check-circle"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card p-3" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); border: none; border-radius: 12px; color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Alertas (24h)</h6>
+                        <h3 class="mb-0 fw-bold">12</h3>
+                    </div>
+                    <div style="font-size: 2rem; opacity: 0.5;"><i class="fas fa-exclamation-triangle"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card p-3" style="background: linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%); border: none; border-radius: 12px; color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Uso de Almacenamiento</h6>
+                        <h3 class="mb-0 fw-bold">45 GB</h3>
+                    </div>
+                    <div style="font-size: 2rem; opacity: 0.5;"><i class="fas fa-database"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function testConnection() {
+        const statusDiv = document.getElementById('connection-status');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-2"></i>Conectando...</span>';
+        
+        setTimeout(() => {
+            statusDiv.innerHTML = '<span class="badge bg-success"><i class="fas fa-check me-2"></i>Conexión Exitosa</span>';
+        }, 1500);
+    }
+
+    function setView(view) {
+        if (view === 'table') {
+            document.getElementById('data-table-container').style.display = 'block';
+            document.getElementById('data-chart-container').style.display = 'none';
+        } else {
+            document.getElementById('data-table-container').style.display = 'none';
+            document.getElementById('data-chart-container').style.display = 'block';
+            initChart();
+        }
+    }
+    
+    let chartInstance = null;
+    function initChart() {
+        if (chartInstance) return;
+        const ctx = document.getElementById('dataChart').getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(52, 152, 219, 0.5)');
+        gradient.addColorStop(1, 'rgba(52, 152, 219, 0.0)');
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                datasets: [{
+                    label: 'Registros por Hora',
+                    data: [12, 19, 3, 5, 2, 3],
+                    borderColor: '#3498db',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: 'white' } }
+                },
+                scales: {
+                    y: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155' }
+                    },
+                    x: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#334155' }
+                    }
+                }
+            }
+        });
+    }
+
+    function refreshData() {
+        alert('Actualizando datos...');
+    }
+</script>
+{% endblock %}

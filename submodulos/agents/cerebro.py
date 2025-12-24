@@ -1,15 +1,15 @@
 import time
 import asyncio
 import slixmpp
+import json
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
-# Importamos las herramientas para guardar en BD
 from asgiref.sync import sync_to_async
-from submodulos.models import ServerMetric
+from submodulos.models import ServerMetric, VMMetric
 import re
 
 # ======================================================
-# 💉 PARCHE DE CONEXIÓN (Necesario para tu servidor local)
+# 💉 PARCHE DE CONEXIÓN
 # ======================================================
 if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
     _original_init = slixmpp.ClientXMPP.__init__
@@ -18,33 +18,73 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
         self.plugin['feature_mechanisms'].unencrypted_plain = True
     slixmpp.ClientXMPP.__init__ = constructor_parcheado
     slixmpp.ClientXMPP._parche_aplicado = True
-# ======================================================
 
 class CerebroAgent(Agent):
     class ComportamientoEscucha(CyclicBehaviour):
         
-        # Función auxiliar para guardar en BD (puente Async -> Sync)
         @sync_to_async
-        def guardar_metrica(self, nodo, cpu, ram, up):
+        def guardar_metrica_servidor(self, nodo, cpu, ram, up):
             ServerMetric.objects.create(
                 node_name=nodo,
                 cpu_usage=cpu,
                 ram_usage=ram,
                 uptime=up
             )
+            
+        @sync_to_async
+        def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
+            VMMetric.objects.create(
+                vm_name=nombre,
+                server_origin=servidor,
+                cpu_usage=cpu,
+                ram_usage=ram,
+                status=status
+            )
 
         async def run(self):
             print("🧠 CEREBRO: Esperando datos...")
-            # Esperamos mensaje (timeout 10s)
             msg = await self.receive(timeout=10)
             
             if msg and msg.body:
                 texto = msg.body
-                # Ejemplo de lo que llega: 
-                # "📡 NODO: prx2 | 🔥 CPU: 0.16% | 🧠 RAM: 4.52% | ⏱️ UP: 461666s"
                 
+                # Intentamos parsear como JSON (Nuevo formato con VMs)
                 try:
-                    # Usamos Regex para extraer los numeritos del texto
+                    data = json.loads(texto)
+                    
+                    if "node" in data and "vms" in data:
+                        nodo = data["node"]
+                        
+                        # Guardar Nodo
+                        await self.guardar_metrica_servidor(
+                            nodo, 
+                            float(data["cpu"]), 
+                            float(data["ram"]), 
+                            int(data["uptime"])
+                        )
+                        print(f"💾 NODO GUARDADO: {nodo}")
+                        
+                        # Guardar VMs
+                        vms = data["vms"]
+                        count = 0
+                        for vm in vms:
+                            await self.guardar_metrica_vm(
+                                vm["name"],
+                                nodo,
+                                float(vm["cpu"]),
+                                float(vm["ram"]),
+                                vm["status"]
+                            )
+                            count += 1
+                        
+                        print(f"   ↳ 💾 {count} MÉTRICAS DE VM GUARDADAS")
+                        return 
+
+                except json.JSONDecodeError:
+                    pass 
+
+                # Fallback: Lógica antigua (Texto plano)
+                try:
                     match_nodo = re.search(r"NODO: (\w+)", texto)
                     match_cpu = re.search(r"CPU: ([\d\.]+)%", texto)
                     match_ram = re.search(r"RAM: ([\d\.]+)%", texto)
@@ -56,9 +96,8 @@ class CerebroAgent(Agent):
                         ram = float(match_ram.group(1))
                         up = int(match_up.group(1))
 
-                        # Guardamos en la Base de Datos
-                        await self.guardar_metrica(nodo, cpu, ram, up)
-                        print(f"💾 GUARDADO EN BD: {nodo} -> CPU: {cpu}% | RAM: {ram}%")
+                        await self.guardar_metrica_servidor(nodo, cpu, ram, up)
+                        print(f"💾 GUARDADO EN BD (Texto): {nodo}")
                     else:
                         print(f"⚠️ Formato desconocido: {texto}")
 

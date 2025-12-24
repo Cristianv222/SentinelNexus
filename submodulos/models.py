@@ -553,3 +553,22 @@ class ServerMetric(models.Model):
 
     def __str__(self):
         return f"{self.node_name} - {self.created_at.strftime('%H:%M:%S')} (CPU: {self.cpu_usage}%)"
+
+class VMMetric(models.Model):
+    """
+    Tabla para guardar el historial de salud de las VMs.
+    """
+    vm_name = models.CharField(max_length=100, verbose_name="Nombre de VM")
+    server_origin = models.CharField(max_length=50, verbose_name="Servidor Origen")
+    cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
+    ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
+    status = models.CharField(max_length=20, verbose_name="Estado")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
+
+    class Meta:
+        verbose_name = "Métrica de VM"
+        verbose_name_plural = "Métricas de VMs"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.vm_name} ({self.server_origin}) - {self.created_at.strftime('%H:%M:%S')}"

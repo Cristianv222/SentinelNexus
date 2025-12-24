@@ -14,16 +14,45 @@ class ProxmoxManager:
         self.active_nodes = self._get_active_nodes()
     
     def _get_active_nodes(self):
-        """Obtiene los nodos que tienen configuración completa"""
+        """Obtiene los nodos que tienen configuración completa desde BD o settings"""
         active_nodes = {}
         
+        # 1. Intentar cargar desde Base de Datos (Prioridad)
+        try:
+            from submodulos.models import ProxmoxServer
+            servers = ProxmoxServer.objects.filter(is_active=True)
+            
+            for server in servers:
+                # Usar ID como clave principal (string)
+                node_key = str(server.id)
+                active_nodes[node_key] = {
+                    'host': server.hostname,
+                    'user': server.username,
+                    'password': server.password,
+                    'verify_ssl': server.verify_ssl,
+                    'port': '8006',
+                    'name': server.name,
+                    'node': server.node_name,
+                    'type': 'db',
+                    'db_id': server.id
+                }
+                # También mapear por hostname para búsquedas inversas
+                active_nodes[server.hostname] = active_nodes[node_key]
+                logger.info(f"Cargado servidor Proxmox desde BD: {server.name} ({server.hostname})")
+                
+        except Exception as e:
+            logger.warning(f"No se pudieron cargar nodos desde BD: {str(e)}")
+
+        # 2. Cargar desde settings como fallback o complemento
         if hasattr(settings, 'PROXMOX_NODES'):
-            for node_key, node_config in settings.PROXMOX_NODES.items():
-                if (node_config.get('host') and 
-                    node_config.get('user') and 
-                    node_config.get('password')):
-                    active_nodes[node_key] = node_config
-                    logger.info(f"Nodo Proxmox activo encontrado: {node_key} - {node_config.get('name', node_key)}")
+            for key, config in settings.PROXMOX_NODES.items():
+                # Solo agregar si no existe ya (la BD tiene prioridad)
+                if key not in active_nodes:
+                    if (config.get('host') and config.get('user') and config.get('password')):
+                        config['type'] = 'ksettings'
+                        config['node'] = config.get('node', 'pve') # Default node name
+                        active_nodes[key] = config
+                        logger.info(f"Nodo Proxmox activo desde settings: {key}")
         
         return active_nodes
     

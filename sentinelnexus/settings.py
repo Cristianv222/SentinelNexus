@@ -188,19 +188,65 @@ SESSION_CACHE_ALIAS = 'default'
 
 
 # Configuración de tareas periódicas actualizadas para múltiples nodos
+# === CONFIGURACION PROXMOX ===
+PROXMOX_HOST = os.environ.get('PROXMOX_HOST', '10.100.100.40')
+PROXMOX_USER = os.environ.get('PROXMOX_USER', 'root@pam')
+PROXMOX_PASSWORD = os.environ.get('PROXMOX_PASSWORD', '')
+PROXMOX_VERIFY_SSL = os.environ.get('PROXMOX_VERIFY_SSL', 'False').lower() == 'true'
+
+PROXMOX = {
+    'host': PROXMOX_HOST,
+    'user': PROXMOX_USER,
+    'password': PROXMOX_PASSWORD,
+    'verify_ssl': PROXMOX_VERIFY_SSL
+}
+
+# Configuración de múltiples nodos (Compatibilidad con proxmox_manager)
+PROXMOX_NODES = {}
+
+# Nodo 1 (Principal)
+p1_host = os.environ.get('PROXMOX_NODE1_HOST') or os.environ.get('PROXMOX_HOST')
+if p1_host:
+    PROXMOX_NODES['node1'] = {
+        'host': p1_host,
+        'user': os.environ.get('PROXMOX_NODE1_USER') or os.environ.get('PROXMOX_USER'),
+        'password': os.environ.get('PROXMOX_NODE1_PASSWORD') or os.environ.get('PROXMOX_PASSWORD'),
+        'verify_ssl': False,
+        'name': os.environ.get('PROXMOX_NODE1_NAME', 'Node1')
+    }
+
+# Nodo 2
+if os.environ.get('PROXMOX_NODE2_HOST'):
+    PROXMOX_NODES['node2'] = {
+        'host': os.environ.get('PROXMOX_NODE2_HOST'),
+        'user': os.environ.get('PROXMOX_NODE2_USER'),
+        'password': os.environ.get('PROXMOX_NODE2_PASSWORD'),
+        'verify_ssl': False,
+        'name': os.environ.get('PROXMOX_NODE2_NAME', 'Node2')
+    }
+
+# Nodo 3
+if os.environ.get('PROXMOX_NODE3_HOST'):
+    PROXMOX_NODES['node3'] = {
+        'host': os.environ.get('PROXMOX_NODE3_HOST'),
+        'user': os.environ.get('PROXMOX_NODE3_USER'),
+        'password': os.environ.get('PROXMOX_NODE3_PASSWORD'),
+        'verify_ssl': False,
+        'name': os.environ.get('PROXMOX_NODE3_NAME', 'Node3')
+    }
+
+# Configuración de tareas periódicas
 CELERY_BEAT_SCHEDULE = {
-    'monitor-proxmox-every-5-minutes': {
-        'task': 'submodulos.tasks.monitor_all_proxmox_servers',  # Nueva tarea para todos los nodos
-        'schedule': crontab(minute='*/5'),
-    },
-    'collect-local-metrics-every-minute': {
-        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
+    # Monitoreo de nodos Proxmox (CPU, RAM, Disco del HOST) - Cada 1 minuto
+    'monitor-proxmox-every-minute': {
+        'task': 'submodulos.tasks.monitor_all_proxmox_servers',
         'schedule': crontab(minute='*'),
     },
-    'collect-hybrid-metrics-every-hour': {
-        'task': 'submodulos.tasks.collect_local_metrics_hybrid',
-        'schedule': 3600.0,
-    }
+    # Sincronización de inventario de VMs - Cada 5 minutos (Opcional, si se desea)
+    # 'sync-proxmox-inventory': {
+    #    'task': 'submodulos.tasks.sync_infrastructure',
+    #    'schedule': crontab(minute='*/5'),
+    # },
 }
 
 # Static files (CSS, JavaScript, Images)
@@ -213,9 +259,7 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'submodulos/static'),
 ]
 
-# Configuracion de jazzmin 
-
-
+# Configuracion de jazzmin
 JAZZMIN_SETTINGS = {
     # Títulos
     "site_title": "SentinelNexus Admin",
@@ -277,6 +321,6 @@ JAZZMIN_SETTINGS = {
         "submodulos.ServerMetric": "fas fa-chart-line",
         "submodulos.ServerMetrics": "fas fa-chart-bar",
         "submodulos.MaquinaVirtual": "fas fa-desktop",
-        "submodulos.Nodo": "fas fa-network-wired", # <-- Esta línea faltaba
+        "submodulos.Nodo": "fas fa-network-wired",
     },
 }
