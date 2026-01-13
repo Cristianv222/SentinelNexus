@@ -176,6 +176,10 @@ Servidores - SentinelNexus{% endblock %} {% block extra_css %}
     background: linear-gradient(135deg, #4facfe 0%, #0b99eb 100%);
   }
 
+  .server-datacenter {
+    background: linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%);
+  }
+
   /* Progress bars circulares */
   .circular-progress {
     position: relative;
@@ -850,6 +854,153 @@ Servidores - SentinelNexus{% endblock %} {% block extra_css %}
     </div>
   </div>
 
+  <!-- Servidor Datacenter -->
+  <div class="server-card server-datacenter" onclick="toggleVMs(4, event)">
+    <div class="server-header">
+      <div class="server-title">
+        <i class="fas fa-building"></i>
+        <span id="server-name-4">Servidor Datacenter</span>
+        <i class="fas fa-chevron-down expand-icon" id="expand-icon-4"></i>
+      </div>
+      <div class="server-status status-offline" id="server-status-4">
+        <span class="pulse"></span>
+        OFFLINE
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-item">
+        <div class="circular-progress">
+          <svg width="120" height="120">
+            <circle class="circle-bg" cx="60" cy="60" r="54"></circle>
+            <circle
+              class="circle-progress"
+              id="cpu-circle-4"
+              cx="60"
+              cy="60"
+              r="54"
+              style="
+                stroke: #f39c12;
+                stroke-dasharray: 339.292;
+                stroke-dashoffset: 339.292;
+              "
+            ></circle>
+          </svg>
+          <div class="progress-text" id="cpu-text-4">0%</div>
+        </div>
+        <div class="metric-label mt-2">CPU</div>
+      </div>
+
+      <div class="metric-item">
+        <div class="circular-progress">
+          <svg width="120" height="120">
+            <circle class="circle-bg" cx="60" cy="60" r="54"></circle>
+            <circle
+              class="circle-progress"
+              id="mem-circle-4"
+              cx="60"
+              cy="60"
+              r="54"
+              style="
+                stroke: #3498db;
+                stroke-dasharray: 339.292;
+                stroke-dashoffset: 339.292;
+              "
+            ></circle>
+          </svg>
+          <div class="progress-text" id="mem-text-4">0%</div>
+        </div>
+        <div class="metric-label mt-2">MEMORIA</div>
+      </div>
+
+      <div class="metric-item">
+        <div class="circular-progress">
+          <svg width="120" height="120">
+            <circle class="circle-bg" cx="60" cy="60" r="54"></circle>
+            <circle
+              class="circle-progress"
+              id="disk-circle-4"
+              cx="60"
+              cy="60"
+              r="54"
+              style="
+                stroke: #2ecc71;
+                stroke-dasharray: 339.292;
+                stroke-dashoffset: 339.292;
+              "
+            ></circle>
+          </svg>
+          <div class="progress-text" id="disk-text-4">0%</div>
+        </div>
+        <div class="metric-label mt-2">DISCO</div>
+      </div>
+
+      <div class="metric-item">
+        <div class="circular-progress">
+            <svg width="120" height="120">
+                <circle class="circle-bg" cx="60" cy="60" r="54"></circle>
+                <circle class="circle-progress" id="net-circle-4" cx="60" cy="60" r="54"
+                        style="stroke: #e74c3c; stroke-dasharray: 339.292; stroke-dashoffset: 339.292;">
+                </circle>
+            </svg>
+            <div class="progress-text" style="font-size: 1rem;">
+                <span id="net-text-4" style="font-size: 1.2rem; font-weight: bold;">0%</span>
+                <div id="net-mbps-4" style="font-size: 0.8rem; color: #aaa;">0 Mbps</div>
+            </div>
+        </div>
+        <div class="metric-label mt-2">RED (Load)</div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-container">
+        <div class="chart-title">Historial CPU (24h)</div>
+        <canvas id="cpu-chart-4"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">Historial Memoria (24h)</div>
+        <canvas id="mem-chart-4"></canvas>
+      </div>
+    </div>
+
+    <div class="server-info">
+      <div class="info-item">
+        <i class="fas fa-microchip"></i>
+        <span>Cores: <strong id="cores-4">--</strong></span>
+      </div>
+      <div class="info-item">
+        <i class="fas fa-memory"></i>
+        <span>RAM Total: <strong id="ram-total-4">--</strong></span>
+      </div>
+      <div class="info-item">
+        <i class="fas fa-hdd"></i>
+        <span>Almacenamiento: <strong id="storage-4">--</strong></span>
+      </div>
+      <div class="info-item">
+        <i class="fas fa-cube"></i>
+        <span>VMs Activas: <strong id="vms-4">0</strong></span>
+      </div>
+      <div class="info-item">
+        <i class="fas fa-clock"></i>
+        <span>Uptime: <strong id="uptime-4">--</strong></span>
+      </div>
+    </div>
+
+    <!-- Contenedor de VMs -->
+    <div
+      class="vms-container"
+      id="vms-container-4"
+      onclick="event.stopPropagation()"
+    >
+      <h4 style="color: white; margin-bottom: 20px">
+        <i class="fas fa-cube me-2"></i>Máquinas Virtuales
+      </h4>
+      <div class="vm-grid" id="vm-grid-4">
+        <!-- Las VMs se cargarán dinámicamente aquí -->
+      </div>
+    </div>
+  </div>
+
   <!-- Controles -->
   <div class="row mt-4">
     <div class="col-12 text-center">
@@ -1006,7 +1157,7 @@ Servidores - SentinelNexus{% endblock %} {% block extra_css %}
 
   // Inicializar gráficas
   function initCharts() {
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 4; i++) {
       // Gráfica de CPU
       const cpuCtx = document.getElementById(`cpu-chart-${i}`);
       if (cpuCtx) {

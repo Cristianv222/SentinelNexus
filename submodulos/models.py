@@ -417,23 +417,9 @@ class Server(models.Model):
             #super().save(update_fields=['proxmox_server'])
 
 # Modelo para métricas de servidores Proxmox
-class ServerMetric(models.Model):
-    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name='metrics')
-    timestamp = models.DateTimeField(auto_now_add=True)
-    cpu_usage = models.FloatField()
-    memory_usage = models.FloatField()
-    disk_usage = models.FloatField()
-    uptime = models.BigIntegerField()
-    
-    class Meta:
-        ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['timestamp']),
-            models.Index(fields=['server', 'timestamp']),
-        ]
-    
-    def __str__(self):
-        return f"{self.server.name} - {self.timestamp}"
+# ServerMetric (old definition removed to resolve duplicate registration warning)
+# The active definition is at the end of this file.
+
 
 # Modelo para métricas locales
 class LocalMetric(models.Model):

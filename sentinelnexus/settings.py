@@ -135,7 +135,7 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Login/Logout settings
-LOGIN_REDIRECT_URL = 'dashboard'
+LOGIN_REDIRECT_URL = 'nodes_overview'
 LOGOUT_REDIRECT_URL = 'login'
 LOGIN_URL = 'login'
 

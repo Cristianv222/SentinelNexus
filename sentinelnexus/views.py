@@ -3777,17 +3777,19 @@ def api_servers_metrics(request):
     # 2. Itera sobre los servidores de la BDD
     for server in active_servers:
         try:
+            print(f"Connecting to {server.name} ({server.hostname})...")
             # 3. Conecta usando las credenciales de la BDD
             proxmox = ProxmoxAPI(
                 server.hostname,
                 user=server.username,
                 password=server.password,
-                verify_ssl=False,
+                verify_ssl=server.verify_ssl,
                 timeout=10 # Le damos 10 segundos
             )
 
             # 4. Usa el 'node_name' que guardamos en la BDD
             node_name = server.node_name
+            print(f"Fetching status for node: {node_name}")
             node_status = proxmox.nodes(node_name).status.get()
 
             server_info = {
@@ -3812,6 +3814,7 @@ def api_servers_metrics(request):
             servers_data.append(server_info)
 
         except Exception as e:
+            print(f"ERROR connecting to {server.name}: {e}")
             logger.error(f"Error al conectar con el servidor {server.name} (ID: {server.id}): {e}")
             servers_data.append({
                 'name': server.name,
@@ -4053,90 +4056,119 @@ def data_dashboard(request):
     """
     Dashboard para visualizar y exportar datos históricos
     """
-    from submodulos.models import ProxmoxServer, Nodo
+    from submodulos.models import ProxmoxServer, Nodo, VMMetric
+    from django.db.models import Count
+    from django.db.models.functions import TruncDate
+    from django.utils import timezone
+    from datetime import timedelta
+    import json
     
     # Recopilar datos resumen para mostrar en el dashboard
     servers = ProxmoxServer.objects.all()
     nodes = Nodo.objects.all()
     
+    # Calcular volumen de datos de los últimos 7 días
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=7)
+    
+    metrics_history = VMMetric.objects.filter(created_at__gte=start_date)\
+        .annotate(date=TruncDate('created_at'))\
+        .values('date')\
+        .annotate(count=Count('id'))\
+        .order_by('date')
+        
+    # Preparar datos para Chart.js
+    labels = []
+    data = []
+    
+    # Rellenar días vacíos si es necesario, o simplificar
+    # Para este ejemplo rápido, usaremos lo que devuelva la BD
+    for entry in metrics_history:
+        labels.append(entry['date'].strftime('%d/%m'))
+        data.append(entry['count'])
+        
+    # Si no hay datos, poner algo ficticio para que se vea bonnito al inicio
+    if not data:
+        labels = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
+        data = [0, 0, 0, 0, 0, 0, 0]
+
     context = {
         'page_title': 'Panel de Datos',
         'active_tab': 'data',
         'servers_count': servers.count(),
         'nodes_count': nodes.count(),
         'servers': servers,
-        'nodes': nodes
+        'nodes': nodes,
+        'chart_labels': json.dumps(labels),
+        'chart_data': json.dumps(data)
     }
     return render(request, 'data_dashboard.html', context)
 
 @login_required
+@login_required
 def export_data_csv(request):
     """
-    Exporta datos de métricas a CSV
+    Exporta datos de métricas a CSV. Soporta filtrado por modelo.
     """
     import csv
     from django.http import HttpResponse
-    from datetime import datetime
+    from django.utils import timezone
+    from submodulos.models import VMMetric, ServerMetric, ProxmoxServer, Nodo
+
+    model_name = request.GET.get('model', 'vm_metrics') # Default to VM Metrics
     
     response = HttpResponse(content_type='text/csv')
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    response['Content-Disposition'] = f'attachment; filename="sentinelnexus_metrics_{timestamp}.csv"'
+    timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+    response['Content-Disposition'] = f'attachment; filename="sentinelnexus_{model_name}_{timestamp}.csv"'
     
     writer = csv.writer(response)
-    # Cabeceras
-    writer.writerow(['Timestamp', 'Tipo', 'Entidad', 'Servidor/Nodo', 'Métrica', 'Valor', 'Unidad'])
     
-    from submodulos.models import ProxmoxServer
-    from utils.proxmox_manager import proxmox_manager
-    
-    servers = ProxmoxServer.objects.filter(is_active=True)
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    for server in servers:
-        # 1. Exportar datos del Servidor
-        writer.writerow([current_time, 'Server', server.name, server.node_name, 'Status', 'Online', 'State'])
-        writer.writerow([current_time, 'Server', server.name, server.node_name, 'CPU Cores', server.cpu_cores, 'Count'])
-        
-        # 2. Exportar datos de sus VMs
-        try:
-             proxmox = proxmox_manager.get_connection(str(server.id))
-             # Nodo objetivo
-             nodes = proxmox.nodes.get()
-             target_node = server.node_name if server.node_name and any(n['node'] == server.node_name for n in nodes) else nodes[0]['node']
-             
-             # VMs y LXC
-             for vm_type in ['qemu', 'lxc']:
-                 try:
-                     vms_list = getattr(proxmox.nodes(target_node), vm_type).get()
-                     for vm in vms_list:
-                         vmid = vm.get('vmid')
-                         # Intentar obtener status rápido
-                         try:
-                             # Para exportación masiva, usamos datos básicos de la lista para no saturar con miles de llamadas
-                             # o hacemos una llamada ligera si es necesario.
-                             # Usamos los datos de lista que ya suelen tener cpu/mem current
-                             
-                             vm_name = vm.get('name', f"{vm_type}-{vmid}")
-                             status = vm.get('status', 'unknown')
-                             
-                             # Convert to percentages/values if present
-                             # QEMU list often has 'cpu' as ratio (0.05 = 5%)
-                             cpu = round(vm.get('cpu', 0) * 100, 2)
-                             
-                             # Memory is often bytes
-                             maxmem = vm.get('maxmem', 1)
-                             mem = vm.get('mem', 0)
-                             mem_pct = round((mem/maxmem)*100, 2) if maxmem > 0 else 0
-                             
-                             writer.writerow([current_time, 'VM', vm_name, server.name, 'Status', status, 'State'])
-                             if status == 'running':
-                                 writer.writerow([current_time, 'VM', vm_name, server.name, 'CPU Usage', cpu, '%'])
-                                 writer.writerow([current_time, 'VM', vm_name, server.name, 'RAM Usage', mem_pct, '%'])
-                         except Exception as e:
-                             continue
-                 except: 
-                     pass
-        except:
-             writer.writerow([current_time, 'Server', server.name, server.node_name, 'Error', 'Connection Failed', 'Error'])
-        
+    if model_name == 'vm_metrics':
+        # Exportar Historial de Métricas de VMs
+        writer.writerow(['Timestamp', 'VM', 'Servidor Origen', 'Estado', 'CPU (%)', 'RAM (%)'])
+        queryset = VMMetric.objects.all().order_by('-created_at')
+        for item in queryset:
+            writer.writerow([
+                item.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                item.vm_name,
+                item.server_origin,
+                item.status,
+                str(item.cpu_usage).replace('.', ','), # Excel friendly for some locales
+                str(item.ram_usage).replace('.', ',')
+            ])
+            
+    elif model_name == 'server_metrics':
+        # Exportar Historial de Métricas de Servidores
+        writer.writerow(['Timestamp', 'Nodo', 'Uptime (s)', 'CPU (%)', 'RAM (%)'])
+        queryset = ServerMetric.objects.all().order_by('-created_at')
+        for item in queryset:
+            writer.writerow([
+                item.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                item.node_name,
+                item.uptime,
+                str(item.cpu_usage).replace('.', ','),
+                str(item.ram_usage).replace('.', ',')
+            ])
+            
+    elif model_name == 'servers_config':
+        # Exportar Configuración de Servidores
+        writer.writerow(['Nombre', 'Hostname', 'Usuario', 'Nodo Proxmox', 'Activo', 'Creado'])
+        queryset = ProxmoxServer.objects.all()
+        for item in queryset:
+            writer.writerow([
+                item.name,
+                item.hostname,
+                item.username,
+                item.node_name,
+                'Sí' if item.is_active else 'No',
+                item.created_at.strftime('%Y-%m-%d')
+            ])
+
+    # Fallback legacy export (si no se especifica modelo válido o para compatibilidad)
+    else: 
+         # Si no coincide con ninguno, usamos la lógica anterior de snapshot actual
+         # pero simplificada para devolver algo 
+         writer.writerow(['Timestamp', 'Tipo', 'Entidad', 'Info'])
+         writer.writerow([timezone.now(), 'Error', 'Modelo no reconocido', model_name])
+         
     return response
