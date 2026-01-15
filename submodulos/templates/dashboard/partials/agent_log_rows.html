@@ -1,0 +1,31 @@
+{% for log in logs %}
+<tr class="align-middle border-secondary" style="border-color: #30363d;">
+    <td class="ps-4 text-muted small" style="font-family: monospace;">{{ log.timestamp|date:"H:i:s" }}</td>
+    <td class="fw-bold" style="color: #58a6ff;">{{ log.agent_name }}</td>
+    <td>
+        {% if log.level == 'INFO' %}<span class="badge bg-secondary opacity-50">INFO</span>
+        {% elif log.level == 'WARNING' %}<span class="badge bg-warning text-dark border border-warning">WARN</span>
+        {% elif log.level == 'ACTION' %}<span class="badge bg-success border border-success">ACT</span>
+        {% elif log.level == 'CRITICAL' %}<span class="badge bg-danger border border-danger">CRIT</span>
+        {% endif %}
+    </td>
+    <td class="text-light">
+        <span
+            style="color: {% if log.level == 'INFO' %}#c9d1d9{% elif log.level == 'WARNING' %}#d29922{% elif log.level == 'ACTION' %}#2ea043{% elif log.level == 'CRITICAL' %}#f85149{% endif %};">
+            {{ log.message }}
+        </span>
+        {% if log.details %}
+        <div class="mt-1 p-1 rounded small"
+            style="background: rgba(255,255,255,0.05); color: #8b949e; display: inline-block;">
+            {{ log.details }}
+        </div>
+        {% endif %}
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="4" class="text-center py-5 text-muted">
+        <i class="fas fa-circle-notch fa-spin me-2"></i> Esperando actividad de agentes...
+    </td>
+</tr>
+{% endfor %}

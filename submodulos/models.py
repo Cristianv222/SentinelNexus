@@ -180,6 +180,7 @@ class MaquinaVirtual(models.Model):
     vm_type = models.CharField(max_length=10, choices=VM_TYPE_CHOICES, default='qemu')
     estado = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unknown')
     is_monitored = models.BooleanField(default=True)
+    is_critical = models.BooleanField(default=False, verbose_name="Es Crítica (Watchdog)")
     last_checked = models.DateTimeField(null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -558,3 +559,25 @@ class VMMetric(models.Model):
 
     def __str__(self):
         return f"{self.vm_name} ({self.server_origin}) - {self.created_at.strftime('%H:%M:%S')}"
+
+class AgentLog(models.Model):
+    LEVELS = [
+        ('INFO', 'Información'),
+        ('WARNING', 'Alerta'),
+        ('ACTION', 'Acción Táctica'), # Cuando el agente hace algo
+        ('CRITICAL', 'Fallo Crítico')
+    ]
+    
+    agent_name = models.CharField(max_length=50) # "Cerebro", "Monitor-Web01"
+    level = models.CharField(max_length=20, choices=LEVELS, default='INFO')
+    message = models.CharField(max_length=255)   # "Detectada alta CPU en nodo PVE1"
+    details = models.JSONField(null=True, blank=True)        # {"cpu": 95.5, "threshold": 90}
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Log de Agente'
+        verbose_name_plural = 'Logs de Agentes'
+
+    def __str__(self):
+        return f"[{self.agent_name}] {self.level}: {self.message}"
