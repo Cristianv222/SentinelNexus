@@ -1,0 +1,14 @@
+[Unit]
+Description=SentinelNexus Cerebro Agent (Watchdog)
+After=network.target
+
+[Service]
+# User running the application (Change 'ubuntu' if needed)
+User=root
+WorkingDirectory=/opt/sentinelnexus
+ExecStart=/opt/sentinelnexus/venv/bin/python run_cerebro_agent.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

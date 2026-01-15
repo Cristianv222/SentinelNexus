@@ -5,8 +5,9 @@ import json
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from asgiref.sync import sync_to_async
-from submodulos.models import ServerMetric, VMMetric
-import re
+from submodulos.models import ServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo
+from submodulos.proxmox_service import proxmox_service
+from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
 
 # ======================================================
 # 💉 PARCHE DE CONEXIÓN
@@ -20,27 +21,37 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
     slixmpp.ClientXMPP._parche_aplicado = True
 
 class CerebroAgent(Agent):
+    @sync_to_async
+    def guardar_metrica_servidor(self, nodo, cpu, ram, up):
+        ServerMetric.objects.create(
+            node_name=nodo,
+            cpu_usage=cpu,
+            ram_usage=ram,
+            uptime=up
+        )
+        
+    @sync_to_async
+    def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
+        VMMetric.objects.create(
+            vm_name=nombre,
+            server_origin=servidor,
+            cpu_usage=cpu,
+            ram_usage=ram,
+            status=status
+        )
+
+    @sync_to_async
+    def log_db(self, msg, level='INFO', details=None):
+        AgentLog.objects.create(
+            agent_name="Cerebro",
+            level=level,
+            message=msg,
+            details=details
+        )
+        print(f"[{level}] {msg}")
+
     class ComportamientoEscucha(CyclicBehaviour):
         
-        @sync_to_async
-        def guardar_metrica_servidor(self, nodo, cpu, ram, up):
-            ServerMetric.objects.create(
-                node_name=nodo,
-                cpu_usage=cpu,
-                ram_usage=ram,
-                uptime=up
-            )
-            
-        @sync_to_async
-        def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
-            VMMetric.objects.create(
-                vm_name=nombre,
-                server_origin=servidor,
-                cpu_usage=cpu,
-                ram_usage=ram,
-                status=status
-            )
-
         async def run(self):
             print("🧠 CEREBRO: Esperando datos...")
             msg = await self.receive(timeout=10)
@@ -56,7 +67,7 @@ class CerebroAgent(Agent):
                         nodo = data["node"]
                         
                         # Guardar Nodo
-                        await self.guardar_metrica_servidor(
+                        await self.agent.guardar_metrica_servidor(
                             nodo, 
                             float(data["cpu"]), 
                             float(data["ram"]), 
@@ -67,8 +78,10 @@ class CerebroAgent(Agent):
                         # Guardar VMs
                         vms = data["vms"]
                         count = 0
+                        high_load_vms = []
+
                         for vm in vms:
-                            await self.guardar_metrica_vm(
+                            await self.agent.guardar_metrica_vm(
                                 vm["name"],
                                 nodo,
                                 float(vm["cpu"]),
@@ -76,8 +89,16 @@ class CerebroAgent(Agent):
                                 vm["status"]
                             )
                             count += 1
+                            if float(vm["ram"]) > 90.0:
+                                high_load_vms.append(vm["name"])
                         
-                        print(f"   ↳ 💾 {count} MÉTRICAS DE VM GUARDADAS")
+                        # Log simple de resumen
+                        await self.agent.log_db(f"Procesado reporte de {nodo}: {count} VMs", "INFO", {"node": nodo, "vm_count": count})
+                        
+                        # Log de alerta si hay carga (Simulación de pensamiento)
+                        if high_load_vms:
+                             await self.agent.log_db(f"⚠️ Alta carga de RAM detectada en: {', '.join(high_load_vms)}", "WARNING", {"vms": high_load_vms})
+
                         return 
 
                 except json.JSONDecodeError:
@@ -96,7 +117,7 @@ class CerebroAgent(Agent):
                         ram = float(match_ram.group(1))
                         up = int(match_up.group(1))
 
-                        await self.guardar_metrica_servidor(nodo, cpu, ram, up)
+                        await self.agent.guardar_metrica_servidor(nodo, cpu, ram, up)
                         print(f"💾 GUARDADO EN BD (Texto): {nodo}")
                     else:
                         print(f"⚠️ Formato desconocido: {texto}")
@@ -104,7 +125,108 @@ class CerebroAgent(Agent):
                 except Exception as e:
                     print(f"❌ Error procesando: {e}")
 
+    class ComportamientoWatchdog(PeriodicBehaviour):
+        async def run(self):
+            # 1. Obtener VMs críticas
+            vms_criticas = await sync_to_async(list)(MaquinaVirtual.objects.filter(is_critical=True))
+            
+            if not vms_criticas:
+                return
+
+            for vm in vms_criticas:
+                try:
+                    # 2. Obtener estado real desde Proxmox (Sincrono, envolver si bloquea mucho)
+                    # Nota: idealmente proxmox_service debería ser async o usar run_in_executor
+                    nodo_nombre = await sync_to_async(lambda: vm.nodo.nombre)()
+                    
+                    # [UPGRADE] Usar proxmox_manager para soportar múltiples servidores
+                    # Buscamos la conexión correcta para este nodo
+                    # Asumimos que el nombre del nodo es único o que se mapea correctamente en proxmox_manager
+                    
+                    from utils.proxmox_manager import proxmox_manager
+                    
+                    # Función auxiliar para ejecutar operaciones síncronas de proxmox en async
+                    def check_and_recover(vm_obj, node_name):
+                        # Intentar encontrar la conexión correcta para este nodo
+                        # Primero, buscamos si el nodo está en la lista de nodos activos del manager
+                        # El manager usa IDs de servidor o nombres arbitrarios como claves
+                        
+                        target_conn = None
+                        
+                        # Barrido rápido para encontrar quién tiene este nodo
+                        # (Optimización: Esto podría cachearse)
+                        all_nodes = proxmox_manager.get_all_nodes()
+                        for key, config in all_nodes.items():
+                             # Conectar y preguntar si tiene este nodo
+                             # O confiar en la metadata si la tuviéramos. 
+                             # Por ahora, intentamos conectar al que diga ser dueño o simplemente probamos
+                             # Como los nombres de nodos suelen ser únicos en un cluster, 
+                             # y aquí podríamos tener múltiples clusters, idealmente vm.nodo debería apuntar a un ProxmoxServer específico
+                             pass
+
+                        # Estrategia simplificada:
+                        # Usar el ID del servidor Proxmox si está disponible en el modelo Nodo -> ProxmoxServer
+                        server_id = None
+                        if vm_obj.nodo.proxmox_server:
+                            server_id = str(vm_obj.nodo.proxmox_server.id)
+                        
+                        proxmox = None
+                        if server_id:
+                             proxmox = proxmox_manager.get_connection(server_id)
+                        else:
+                             # Fallback: Intentar con el default o iterar (Costoso)
+                             # Por ahora usamos el método antiguo si no hay link
+                             from submodulos.proxmox_service import proxmox_service
+                             proxmox = proxmox_service.proxmox
+
+                        if not proxmox:
+                             return "Error: No connection"
+
+                        # Obtener estado actual
+                        # API: /nodes/{node}/qemu/{vmid}/status/current
+                        try:
+                            if vm_obj.vm_type == 'qemu':
+                                status_info = proxmox.nodes(node_name).qemu(vm_obj.vmid).status.current.get()
+                            else:
+                                status_info = proxmox.nodes(node_name).lxc(vm_obj.vmid).status.current.get()
+                        except Exception as e:
+                            return f"Status Check Error: {e}"
+
+                        estado_actual = status_info.get('status', 'unknown')
+                        
+                        # Lógica de resurrección
+                        if estado_actual == 'stopped':
+                            # Intentar iniciar
+                            if vm_obj.vm_type == 'qemu':
+                                proxmox.nodes(node_name).qemu(vm_obj.vmid).status.start.post()
+                            else:
+                                proxmox.nodes(node_name).lxc(vm_obj.vmid).status.start.post()
+                            return "RESTARTED"
+                        
+                        return "OK"
+
+                    # Ejecutar en hilo aparte para no bloquear el loop async de Spade
+                    resultado = await sync_to_async(check_and_recover)(vm, nodo_nombre)
+                    
+                    if resultado == "RESTARTED":
+                        await self.agent.log_db(
+                            f"🚨 ALERTA: VM Crítica {vm.nombre} detectada APAGADA. 🚑 Protocolo de resurrección iniciado.", 
+                            "ACTION", 
+                            {"vm": vm.nombre, "node": nodo_nombre}
+                        )
+                    elif str(resultado).startswith("Error"):
+                         await self.agent.log_db(f"⚠️ Error verificando VM {vm.nombre}: {resultado}", "WARNING")
+
+                except Exception as e:
+                    await self.agent.log_db(f"Error en Watchdog para {vm.nombre}: {e}", "WARNING")
+
     async def setup(self):
         print("🔌 CEREBRO: Iniciando sistema de almacenamiento...")
+        
+        # Comportamiento de Escucha (Mensajes XMPP)
         b = self.ComportamientoEscucha()
         self.add_behaviour(b)
+        
+        # Comportamiento Watchdog (cada 30 segundos)
+        w = self.ComportamientoWatchdog(period=30)
+        self.add_behaviour(w)

@@ -19,29 +19,29 @@
         --danger-color: #F44336;
         --warning-color: #FFC107;
     }
-    
+
     body {
         background-color: var(--primary-dark);
         color: var(--text-color);
         font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     }
-    
+
     .breadcrumb {
         background: rgba(255, 255, 255, 0.05);
         padding: 15px 20px;
         border-radius: 8px;
         margin-bottom: 20px;
     }
-    
+
     .breadcrumb-item a {
         color: var(--accent-blue);
         text-decoration: none;
     }
-    
+
     .breadcrumb-item.active {
         color: var(--text-color);
     }
-    
+
     .node-header {
         background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-light));
         padding: 30px;
@@ -50,7 +50,7 @@
         position: relative;
         overflow: hidden;
     }
-    
+
     .node-header::before {
         content: '';
         position: absolute;
@@ -58,10 +58,10 @@
         right: -20%;
         width: 80%;
         height: 200%;
-        background: radial-gradient(ellipse, rgba(255,255,255,0.1) 0%, transparent 60%);
+        background: radial-gradient(ellipse, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
         transform: rotate(20deg);
     }
-    
+
     .node-title {
         font-size: 2.5rem;
         font-weight: 700;
@@ -70,7 +70,7 @@
         position: relative;
         z-index: 1;
     }
-    
+
     .node-subtitle {
         color: rgba(255, 255, 255, 0.8);
         font-size: 1.1rem;
@@ -78,7 +78,7 @@
         z-index: 1;
         margin-bottom: 15px;
     }
-    
+
     .node-stats {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -87,7 +87,7 @@
         position: relative;
         z-index: 1;
     }
-    
+
     .stat-box {
         background: rgba(255, 255, 255, 0.1);
         padding: 20px;
@@ -95,21 +95,21 @@
         text-align: center;
         backdrop-filter: blur(10px);
     }
-    
+
     .stat-number {
         font-size: 2rem;
         font-weight: 700;
         color: white;
         margin-bottom: 5px;
     }
-    
+
     .stat-label {
         font-size: 0.85rem;
         color: rgba(255, 255, 255, 0.7);
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    
+
     .controls-bar {
         background: var(--card-bg);
         padding: 20px;
@@ -121,27 +121,27 @@
         flex-wrap: wrap;
         gap: 15px;
     }
-    
+
     .controls-left {
         display: flex;
         gap: 15px;
         align-items: center;
         flex-wrap: wrap;
     }
-    
+
     .controls-right {
         display: flex;
         gap: 10px;
         align-items: center;
         flex-wrap: wrap;
     }
-    
+
     .filter-container {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
     }
-    
+
     .filter-btn {
         padding: 8px 16px;
         border: 1px solid var(--border-color);
@@ -152,14 +152,14 @@
         transition: all 0.2s;
         font-size: 0.85rem;
     }
-    
+
     .filter-btn:hover,
     .filter-btn.active {
         background-color: var(--accent-blue);
         border-color: var(--accent-blue);
         color: white;
     }
-    
+
     .btn-create {
         background: var(--success-color);
         color: white;
@@ -173,19 +173,19 @@
         transition: all 0.2s;
         text-decoration: none;
     }
-    
+
     .btn-create:hover {
         background: #45a049;
         color: white;
     }
-    
+
     .vm-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
         gap: 20px;
         margin-bottom: 30px;
     }
-    
+
     .vm-card {
         background: var(--card-bg);
         border-radius: 12px;
@@ -196,25 +196,25 @@
         display: flex;
         flex-direction: column;
     }
-    
+
     .vm-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
         border-color: var(--accent-blue);
     }
-    
+
     .vm-header {
         padding: 20px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
-    
+
     .vm-title {
         display: flex;
         align-items: center;
         justify-content: space-between;
         margin-bottom: 8px;
     }
-    
+
     .vm-name {
         display: flex;
         align-items: center;
@@ -222,58 +222,66 @@
         font-weight: 600;
         color: var(--text-color);
     }
-    
+
     .vm-badges {
         display: flex;
         gap: 8px;
         align-items: center;
     }
-    
+
     .status-indicator {
         width: 10px;
         height: 10px;
         border-radius: 50%;
         margin-right: 8px;
     }
-    
+
     .status-running {
         background-color: var(--success-color);
         box-shadow: 0 0 8px var(--success-color);
         animation: pulse 2s infinite;
     }
-    
+
     .status-stopped {
         background-color: var(--danger-color);
     }
-    
+
     .status-template {
         background-color: var(--warning-color);
     }
-    
+
     @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
+        0% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.5;
+        }
+
+        100% {
+            opacity: 1;
+        }
     }
-    
+
     .vm-body {
         padding: 20px;
         flex-grow: 1;
     }
-    
+
     .resource-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 15px;
         margin-bottom: 20px;
     }
-    
+
     .resource-item {
         background: rgba(255, 255, 255, 0.02);
         padding: 15px;
         border-radius: 6px;
     }
-    
+
     .resource-label {
         display: flex;
         align-items: center;
@@ -283,19 +291,19 @@
         text-transform: uppercase;
         letter-spacing: 0.3px;
     }
-    
+
     .resource-value {
         font-size: 1.2rem;
         font-weight: 600;
         color: var(--text-color);
     }
-    
+
     .resource-detail {
         font-size: 0.75rem;
         color: var(--text-muted);
         margin-top: 4px;
     }
-    
+
     .vm-footer {
         padding: 15px 20px;
         background: rgba(255, 255, 255, 0.02);
@@ -304,12 +312,12 @@
         justify-content: space-between;
         align-items: center;
     }
-    
+
     .action-buttons {
         display: flex;
         gap: 8px;
     }
-    
+
     .btn-action {
         padding: 6px 12px;
         border: none;
@@ -322,44 +330,44 @@
         gap: 4px;
         text-decoration: none;
     }
-    
+
     .btn-primary {
         background: var(--accent-blue);
         color: white;
     }
-    
+
     .btn-primary:hover {
         background: var(--accent-blue-dark);
         color: white;
     }
-    
+
     .btn-success {
         background: var(--success-color);
         color: white;
     }
-    
+
     .btn-danger {
         background: var(--danger-color);
         color: white;
     }
-    
+
     .btn-warning {
         background: var(--warning-color);
         color: black;
     }
-    
+
     .offline-state {
         text-align: center;
         padding: 40px 20px;
         color: var(--text-muted);
     }
-    
+
     .offline-state i {
         font-size: 3rem;
         margin-bottom: 15px;
         opacity: 0.5;
     }
-    
+
     .back-button {
         background: rgba(255, 255, 255, 0.1);
         color: var(--text-color);
@@ -372,13 +380,13 @@
         gap: 8px;
         transition: all 0.2s;
     }
-    
+
     .back-button:hover {
         background: var(--accent-blue);
         color: white;
         border-color: var(--accent-blue);
     }
-    
+
     .refresh-button {
         background: var(--accent-blue);
         color: white;
@@ -391,11 +399,11 @@
         gap: 8px;
         transition: all 0.2s;
     }
-    
+
     .refresh-button:hover {
         background: var(--accent-blue-dark);
     }
-    
+
     /* Modal Styles */
     .modal {
         display: none;
@@ -407,7 +415,7 @@
         height: 100%;
         background-color: rgba(0, 0, 0, 0.5);
     }
-    
+
     .modal-content {
         background-color: var(--card-bg);
         margin: 5% auto;
@@ -417,7 +425,7 @@
         max-width: 600px;
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
+
     .modal-header {
         display: flex;
         justify-content: space-between;
@@ -426,13 +434,13 @@
         padding-bottom: 15px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
+
     .modal-title {
         font-size: 1.5rem;
         font-weight: 600;
         color: var(--text-color);
     }
-    
+
     .close {
         color: var(--text-muted);
         font-size: 28px;
@@ -440,22 +448,22 @@
         cursor: pointer;
         line-height: 1;
     }
-    
+
     .close:hover {
         color: var(--text-color);
     }
-    
+
     .form-group {
         margin-bottom: 20px;
     }
-    
+
     .form-label {
         display: block;
         margin-bottom: 5px;
         color: var(--text-color);
         font-weight: 500;
     }
-    
+
     .form-control {
         width: 100%;
         padding: 10px;
@@ -464,44 +472,45 @@
         background-color: var(--primary-dark);
         color: var(--text-color);
     }
-    
+
     .form-control:focus {
         outline: none;
         border-color: var(--accent-blue);
     }
-    
+
     .form-row {
         display: flex;
         gap: 15px;
     }
-    
+
     .form-col {
         flex: 1;
     }
-    
+
     @media (max-width: 768px) {
         .node-title {
             font-size: 2rem;
         }
-        
+
         .vm-grid {
             grid-template-columns: 1fr;
         }
-        
+
         .node-stats {
             grid-template-columns: repeat(2, 1fr);
         }
-        
+
         .controls-bar {
             flex-direction: column;
             align-items: stretch;
         }
-        
+
         .form-row {
             flex-direction: column;
         }
     }
 </style>
+<script src="https://unpkg.com/htmx.org@1.9.6"></script>
 {% endblock %}
 
 {% block content %}
@@ -515,7 +524,7 @@
             <li class="breadcrumb-item active">{{ node_name }}</li>
         </ol>
     </nav>
-    
+
     <!-- Node Header -->
     <div class="node-header">
         <h1 class="node-title">
@@ -535,7 +544,7 @@
             </span>
             {% endif %}
         </p>
-        
+
         <div class="node-stats">
             <div class="stat-box">
                 <div class="stat-number">{{ total_vms }}</div>
@@ -561,7 +570,7 @@
             {% endif %}
         </div>
     </div>
-    
+
     <!-- Controls -->
     <div class="controls-bar">
         <div class="controls-left">
@@ -569,12 +578,12 @@
                 <i class="fas fa-arrow-left"></i>
                 Volver
             </a>
-            
+
             <button class="refresh-button" onclick="location.reload()">
                 <i class="fas fa-sync-alt"></i>
                 Actualizar
             </button>
-            
+
             <div class="filter-container">
                 <button class="filter-btn active" data-filter="all">Todas</button>
                 <button class="filter-btn" data-filter="running">En ejecución</button>
@@ -583,7 +592,7 @@
                 <button class="filter-btn" data-filter="lxc">Contenedores</button>
             </div>
         </div>
-        
+
         <div class="controls-right">
             <button class="btn-create" onclick="openCreateModal()">
                 <i class="fas fa-plus"></i>
@@ -591,7 +600,7 @@
             </button>
         </div>
     </div>
-    
+
     <!-- VMs Grid -->
     {% if vms %}
     <div class="vm-grid">
@@ -608,7 +617,7 @@
                         {% else %}
                         <span class="status-indicator status-stopped"></span>
                         {% endif %}
-                        
+
                         {% if vm.type == 'qemu' %}
                         <i class="fas fa-desktop me-2" style="color: var(--accent-blue);"></i>
                         {% else %}
@@ -616,7 +625,7 @@
                         {% endif %}
                         {{ vm.name }}
                     </div>
-                    
+
                     <div class="vm-badges">
                         {% if vm.template %}
                         <span class="badge bg-warning text-dark">Template</span>
@@ -629,7 +638,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- VM Body -->
             <div class="vm-body">
                 {% if vm.status == 'running' and not vm.template %}
@@ -641,16 +650,17 @@
                         </div>
                         <div class="resource-value">{{ vm.cpu|floatformat:1 }}%</div>
                     </div>
-                    
+
                     <div class="resource-item">
                         <div class="resource-label">
                             <i class="fas fa-memory me-1"></i>
                             Memoria
                         </div>
                         <div class="resource-value">{{ vm.mem|floatformat:1 }}%</div>
-                        <div class="resource-detail">{{ vm.mem_used|floatformat:0 }}/{{ vm.mem_total|floatformat:0 }} MB</div>
+                        <div class="resource-detail">{{ vm.mem_used|floatformat:0 }}/{{ vm.mem_total|floatformat:0 }} MB
+                        </div>
                     </div>
-                    
+
                     <div class="resource-item">
                         <div class="resource-label">
                             <i class="fas fa-hdd me-1"></i>
@@ -659,7 +669,7 @@
                         <div class="resource-value">{{ vm.disk_used|floatformat:1 }} GB</div>
                         <div class="resource-detail">de {{ vm.disk_total|floatformat:1 }} GB</div>
                     </div>
-                    
+
                     <div class="resource-item">
                         <div class="resource-label">
                             <i class="fas fa-network-wired me-1"></i>
@@ -683,32 +693,42 @@
                 </div>
                 {% endif %}
             </div>
-            
+
             <!-- VM Footer -->
             <div class="vm-footer">
                 <div class="action-buttons">
-                    <a href="/nodes/{{ node_key }}/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/" 
-                       class="btn-action btn-primary">
+                    <a href="/nodes/{{ node_key }}/vms/{{ vm.node }}/{{ vm.vmid }}/type/{{ vm.type }}/"
+                        class="btn-action btn-primary">
                         <i class="fas fa-eye"></i>
                         Detalles
                     </a>
-                    
+
                     {% if not vm.template %}
-                        {% if vm.status == 'stopped' %}
-                        <button class="btn-action btn-success" onclick="performAction('{{ vm.node }}', '{{ vm.vmid }}', '{{ vm.type }}', 'start')">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        {% else %}
-                        <button class="btn-action btn-danger" onclick="performAction('{{ vm.node }}', '{{ vm.vmid }}', '{{ vm.type }}', 'stop')">
-                            <i class="fas fa-stop"></i>
-                        </button>
-                        <button class="btn-action btn-warning" onclick="performAction('{{ vm.node }}', '{{ vm.vmid }}', '{{ vm.type }}', 'restart')">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                        {% endif %}
+                    <!-- Watchdog Toggle -->
+                    <button class="btn-action {% if vm.is_critical %}btn-danger{% else %}btn-secondary{% endif %}"
+                        hx-post="/nodes/{{ vm.node }}/vms/{{ vm.vmid }}/toggle-watchdog/" hx-swap="outerHTML"
+                        title="{% if vm.is_critical %}Protegida por Watchdog (Click para desactivar){% else %}Sin protección (Click para activar){% endif %}">
+                        <i class="fas fa-shield-alt"></i>
+                    </button>
+
+                    {% if vm.status == 'stopped' %}
+                    <button class="btn-action btn-success"
+                        onclick="performAction('{{ vm.node }}', '{{ vm.vmid }}', '{{ vm.type }}', 'start')">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    {% else %}
+                    <button class="btn-action btn-danger"
+                        onclick="performAction('{{ vm.node }}', '{{ vm.vmid }}', '{{ vm.type }}', 'stop')">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <button class="btn-action btn-warning"
+                        onclick="performAction('{{ vm.node }}', '{{ vm.vmid }}', '{{ vm.type }}', 'restart')">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    {% endif %}
                     {% endif %}
                 </div>
-                
+
                 <small class="text-muted">
                     <i class="fas fa-server me-1"></i>{{ vm.node }}
                 </small>
@@ -746,7 +766,7 @@
                     <option value="lxc">Contenedor (LXC)</option>
                 </select>
             </div>
-            
+
             <div class="form-row">
                 <div class="form-col">
                     <label class="form-label">VM ID</label>
@@ -757,7 +777,7 @@
                     <input type="text" class="form-control" id="vm_name" name="name" placeholder="mi-vm" required>
                 </div>
             </div>
-            
+
             <div class="form-row">
                 <div class="form-col">
                     <label class="form-label">Memoria (MB)</label>
@@ -768,7 +788,7 @@
                     <input type="number" class="form-control" id="cores" name="cores" value="1" required>
                 </div>
             </div>
-            
+
             <div class="form-row" id="qemu-fields">
                 <div class="form-col">
                     <label class="form-label">CPU Sockets</label>
@@ -784,7 +804,7 @@
                     </select>
                 </div>
             </div>
-            
+
             <div class="form-row">
                 <div class="form-col">
                     <label class="form-label">Storage</label>
@@ -798,22 +818,23 @@
                     <input type="number" class="form-control" id="disk_size" name="disk_size" value="32">
                 </div>
             </div>
-            
+
             <div class="form-group">
                 <label class="form-label">Bridge de Red</label>
                 <input type="text" class="form-control" id="bridge" name="bridge" value="vmbr0">
             </div>
-            
+
             <div class="form-group" id="iso-field">
                 <label class="form-label">ISO (opcional)</label>
                 <input type="text" class="form-control" id="iso" name="iso" placeholder="debian-11.iso">
             </div>
-            
+
             <div class="form-group" id="template-field" style="display: none;">
                 <label class="form-label">Template LXC</label>
-                <input type="text" class="form-control" id="template" name="template" placeholder="debian-11-standard_11.7-1_amd64.tar.zst">
+                <input type="text" class="form-control" id="template" name="template"
+                    placeholder="debian-11-standard_11.7-1_amd64.tar.zst">
             </div>
-            
+
             <div class="text-end">
                 <button type="button" class="btn-action" onclick="closeCreateModal()">Cancelar</button>
                 <button type="submit" class="btn-action btn-success ms-2">
@@ -828,147 +849,147 @@
 
 {% block extra_js %}
 <script>
-// Filtrado de VMs
-const filterButtons = document.querySelectorAll('.filter-btn');
-const vmCards = document.querySelectorAll('.vm-card');
+    // Filtrado de VMs
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const vmCards = document.querySelectorAll('.vm-card');
 
-filterButtons.forEach(button => {
-    button.addEventListener('click', () => {
-        filterButtons.forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-        
-        const filter = button.getAttribute('data-filter');
-        
-        vmCards.forEach(card => {
-            const status = card.getAttribute('data-status');
-            const type = card.getAttribute('data-type');
-            
-            if (filter === 'all' || 
-                (filter === 'running' && status === 'running') || 
-                (filter === 'stopped' && status === 'stopped') || 
-                (filter === type)) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
-            }
+    filterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            const filter = button.getAttribute('data-filter');
+
+            vmCards.forEach(card => {
+                const status = card.getAttribute('data-status');
+                const type = card.getAttribute('data-type');
+
+                if (filter === 'all' ||
+                    (filter === 'running' && status === 'running') ||
+                    (filter === 'stopped' && status === 'stopped') ||
+                    (filter === type)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
         });
     });
-});
 
-// Funciones del modal
-function openCreateModal() {
-    document.getElementById('createVmModal').style.display = 'block';
-}
-
-function closeCreateModal() {
-    document.getElementById('createVmModal').style.display = 'none';
-}
-
-function toggleVmTypeFields() {
-    const vmType = document.getElementById('vm_type').value;
-    const qemuFields = document.getElementById('qemu-fields');
-    const isoField = document.getElementById('iso-field');
-    const templateField = document.getElementById('template-field');
-    
-    if (vmType === 'qemu') {
-        qemuFields.style.display = 'flex';
-        isoField.style.display = 'block';
-        templateField.style.display = 'none';
-        document.getElementById('disk_size').value = '32';
-    } else {
-        qemuFields.style.display = 'none';
-        isoField.style.display = 'none';
-        templateField.style.display = 'block';
-        document.getElementById('disk_size').value = '8';
+    // Funciones del modal
+    function openCreateModal() {
+        document.getElementById('createVmModal').style.display = 'block';
     }
-}
 
-// Manejo del formulario de creación
-document.getElementById('createVmForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const data = Object.fromEntries(formData);
-    
-    fetch('/nodes/{{ node_key }}/vms/{{ nodes.0.node }}/create/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('VM creada correctamente');
-            closeCreateModal();
-            location.reload();
+    function closeCreateModal() {
+        document.getElementById('createVmModal').style.display = 'none';
+    }
+
+    function toggleVmTypeFields() {
+        const vmType = document.getElementById('vm_type').value;
+        const qemuFields = document.getElementById('qemu-fields');
+        const isoField = document.getElementById('iso-field');
+        const templateField = document.getElementById('template-field');
+
+        if (vmType === 'qemu') {
+            qemuFields.style.display = 'flex';
+            isoField.style.display = 'block';
+            templateField.style.display = 'none';
+            document.getElementById('disk_size').value = '32';
         } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        alert('Error: ' + error);
-    });
-});
-
-// Función para acciones de VM
-function performAction(node, vmid, type, action) {
-    if (action === 'stop' || action === 'restart') {
-        if (!confirm(`¿Está seguro que desea ${action === 'stop' ? 'detener' : 'reiniciar'} esta VM?`)) {
-            return;
+            qemuFields.style.display = 'none';
+            isoField.style.display = 'none';
+            templateField.style.display = 'block';
+            document.getElementById('disk_size').value = '8';
         }
     }
-    
-    fetch(`/nodes/{{ node_key }}/vms/${node}/${vmid}/type/${type}/action/${action}/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': getCookie('csrftoken'),
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(`Acción '${action}' iniciada correctamente`);
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        alert('Error: ' + error);
-    });
-}
 
-// Función para obtener CSRF token
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
+    // Manejo del formulario de creación
+    document.getElementById('createVmForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+
+        fetch('/nodes/{{ node_key }}/vms/{{ nodes.0.node }}/create/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(data)
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('VM creada correctamente');
+                    closeCreateModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+    });
+
+    // Función para acciones de VM
+    function performAction(node, vmid, type, action) {
+        if (action === 'stop' || action === 'restart') {
+            if (!confirm(`¿Está seguro que desea ${action === 'stop' ? 'detener' : 'reiniciar'} esta VM?`)) {
+                return;
             }
         }
-    }
-    return cookieValue;
-}
 
-// Cerrar modal al hacer clic fuera
-window.onclick = function(event) {
-    const modal = document.getElementById('createVmModal');
-    if (event.target === modal) {
-        closeCreateModal();
+        fetch(`/nodes/{{ node_key }}/vms/${node}/${vmid}/type/${type}/action/${action}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Acción '${action}' iniciada correctamente`);
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
     }
-}
 
-// Auto-refresh cada 60 segundos
-setTimeout(function() {
-    location.reload();
-}, 60000);
+    // Función para obtener CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Cerrar modal al hacer clic fuera
+    window.onclick = function (event) {
+        const modal = document.getElementById('createVmModal');
+        if (event.target === modal) {
+            closeCreateModal();
+        }
+    }
+
+    // Auto-refresh cada 60 segundos
+    setTimeout(function () {
+        location.reload();
+    }, 60000);
 </script>
 {% endblock %}
