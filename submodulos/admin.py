@@ -63,3 +63,20 @@ admin.site.register(SistemaOperativo)
 # admin.site.register(AuditoriaRecursosDetalle)
 # admin.site.register(EstadisticaPeriodo)
 # admin.site.register(EstadisticaRecursos)
+
+# --- Registros para Predicciones SARIMA ---
+from .models import ServerPrediction, VMPrediction
+
+@admin.register(ServerPrediction)
+class ServerPredictionAdmin(admin.ModelAdmin):
+    list_display = ('server', 'timestamp', 'predicted_cpu_usage', 'predicted_memory_usage')
+    list_filter = ('server', 'timestamp')
+    date_hierarchy = 'timestamp'
+    ordering = ('-timestamp',)
+
+@admin.register(VMPrediction)
+class VMPredictionAdmin(admin.ModelAdmin):
+    list_display = ('vm', 'timestamp', 'predicted_cpu_usage', 'predicted_memory_usage', 'is_anomaly')
+    list_filter = ('vm', 'is_anomaly', 'timestamp')
+    date_hierarchy = 'timestamp'
+    ordering = ('-timestamp',)

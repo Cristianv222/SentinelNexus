@@ -33,6 +33,7 @@ class CerebroAgent(Agent):
             
         @sync_to_async
         def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
+            # Guardar Métrica Real
             VMMetric.objects.create(
                 vm_name=nombre,
                 server_origin=servidor,
@@ -40,6 +41,40 @@ class CerebroAgent(Agent):
                 ram_usage=ram,
                 status=status
             )
+            
+            # --- DETECCIÓN DE ANOMALÍAS ---
+            from submodulos.models import VMPrediction, MaquinaVirtual
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            try:
+                # Buscar VM en DB para obtener ID (necesario para buscar predicción)
+                # Nota: Esto asume que la VM ya existe o se puede buscar por nombre/server
+                # Para simplificar, intentamos buscar por nombre
+                vm_obj = MaquinaVirtual.objects.filter(nombre=nombre).first()
+                if vm_obj:
+                    # Buscar predicción para la hora actual (margen de error de la hora)
+                    now = timezone.now()
+                    # Redondear a la hora más cercana o buscar en rango
+                    start_range = now - timedelta(minutes=30)
+                    end_range = now + timedelta(minutes=30)
+                    
+                    prediction = VMPrediction.objects.filter(
+                        vm=vm_obj, 
+                        timestamp__range=(start_range, end_range)
+                    ).first()
+                    
+                    if prediction:
+                        # Umbrales (Hardcoded por ahora, podrían ser configurables)
+                        # Si difiere más del 20% absoluto
+                        umbrale_cpu = 20.0 
+                        diff_cpu = abs(prediction.predicted_cpu_usage - cpu)
+                        
+                        if diff_cpu > umbrale_cpu:
+                            print(f"⚠️ ANOMALÍA DETECTADA en {nombre}: CPU Real {cpu}% vs Predicho {prediction.predicted_cpu_usage:.2f}%")
+                            # Aquí se podría disparar una alerta XMPP o guardar eventos
+            except Exception as e:
+                print(f"Error en detección de anomalías: {e}")
 
         async def run(self):
             print("🧠 CEREBRO: Esperando datos...")
