@@ -2,11 +2,14 @@ import time
 import asyncio
 import slixmpp
 import json
-from spade.agent import Agent
-from spade.behaviour import CyclicBehaviour
-from asgiref.sync import sync_to_async
-from submodulos.models import ServerMetric, VMMetric
 import re
+from spade.agent import Agent
+from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
+from asgiref.sync import sync_to_async
+from submodulos.models import ServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo, VMPrediction
+from submodulos.proxmox_service import proxmox_service
+from django.utils import timezone
+from datetime import timedelta
 
 # ======================================================
 # 💉 PARCHE DE CONEXIÓN
@@ -20,62 +23,70 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
     slixmpp.ClientXMPP._parche_aplicado = True
 
 class CerebroAgent(Agent):
-    class ComportamientoEscucha(CyclicBehaviour):
+    @sync_to_async
+    def guardar_metrica_servidor(self, nodo, cpu, ram, up):
+        ServerMetric.objects.create(
+            node_name=nodo,
+            cpu_usage=cpu,
+            ram_usage=ram,
+            uptime=up
+        )
         
-        @sync_to_async
-        def guardar_metrica_servidor(self, nodo, cpu, ram, up):
-            ServerMetric.objects.create(
-                node_name=nodo,
-                cpu_usage=cpu,
-                ram_usage=ram,
-                uptime=up
-            )
-            
-        @sync_to_async
-        def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
-            # Guardar Métrica Real
-            VMMetric.objects.create(
-                vm_name=nombre,
-                server_origin=servidor,
-                cpu_usage=cpu,
-                ram_usage=ram,
-                status=status
-            )
-            
-            # --- DETECCIÓN DE ANOMALÍAS ---
-            from submodulos.models import VMPrediction, MaquinaVirtual
-            from django.utils import timezone
-            from datetime import timedelta
-            
-            try:
-                # Buscar VM en DB para obtener ID (necesario para buscar predicción)
-                # Nota: Esto asume que la VM ya existe o se puede buscar por nombre/server
-                # Para simplificar, intentamos buscar por nombre
-                vm_obj = MaquinaVirtual.objects.filter(nombre=nombre).first()
-                if vm_obj:
-                    # Buscar predicción para la hora actual (margen de error de la hora)
-                    now = timezone.now()
-                    # Redondear a la hora más cercana o buscar en rango
-                    start_range = now - timedelta(minutes=30)
-                    end_range = now + timedelta(minutes=30)
+    @sync_to_async
+    def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
+        # 1. Guardar Métrica Real
+        VMMetric.objects.create(
+            vm_name=nombre,
+            server_origin=servidor,
+            cpu_usage=cpu,
+            ram_usage=ram,
+            status=status
+        )
+        
+        # 2. DETECCIÓN DE ANOMALÍAS (SARIMA)
+        try:
+            # Buscar VM en DB para obtener ID
+            vm_obj = MaquinaVirtual.objects.filter(nombre=nombre).first()
+            if vm_obj:
+                # Buscar predicción para la hora actual
+                now = timezone.now()
+                start_range = now - timedelta(minutes=30)
+                end_range = now + timedelta(minutes=30)
+                
+                prediction = VMPrediction.objects.filter(
+                    vm=vm_obj, 
+                    timestamp__range=(start_range, end_range)
+                ).first()
+                
+                if prediction:
+                    # Si difiere más del 20% absoluto
+                    umbrale_cpu = 20.0 
+                    diff_cpu = abs(prediction.predicted_cpu_usage - cpu)
                     
-                    prediction = VMPrediction.objects.filter(
-                        vm=vm_obj, 
-                        timestamp__range=(start_range, end_range)
-                    ).first()
-                    
-                    if prediction:
-                        # Umbrales (Hardcoded por ahora, podrían ser configurables)
-                        # Si difiere más del 20% absoluto
-                        umbrale_cpu = 20.0 
-                        diff_cpu = abs(prediction.predicted_cpu_usage - cpu)
-                        
-                        if diff_cpu > umbrale_cpu:
-                            print(f"⚠️ ANOMALÍA DETECTADA en {nombre}: CPU Real {cpu}% vs Predicho {prediction.predicted_cpu_usage:.2f}%")
-                            # Aquí se podría disparar una alerta XMPP o guardar eventos
-            except Exception as e:
-                print(f"Error en detección de anomalías: {e}")
+                    if diff_cpu > umbrale_cpu:
+                        msg = f"⚠️ ANOMALÍA DETECTADA en {nombre}: CPU Real {cpu}% vs Predicho {prediction.predicted_cpu_usage:.2f}%"
+                        print(msg)
+                        # Registrar anomalía como warning tambien
+                        AgentLog.objects.create(
+                            agent_name="Cerebro",
+                            level="WARNING",
+                            message=msg,
+                            details={"cpu_real": cpu, "cpu_pred": prediction.predicted_cpu_usage}
+                        )
+        except Exception as e:
+            print(f"Error en detección de anomalías: {e}")
 
+    @sync_to_async
+    def log_db(self, msg, level='INFO', details=None):
+        AgentLog.objects.create(
+            agent_name="Cerebro",
+            level=level,
+            message=msg,
+            details=details
+        )
+        print(f"[{level}] {msg}")
+
+    class ComportamientoEscucha(CyclicBehaviour):
         async def run(self):
             print("🧠 CEREBRO: Esperando datos...")
             msg = await self.receive(timeout=10)
@@ -83,7 +94,7 @@ class CerebroAgent(Agent):
             if msg and msg.body:
                 texto = msg.body
                 
-                # Intentamos parsear como JSON (Nuevo formato con VMs)
+                # Intentamos parsear como JSON
                 try:
                     data = json.loads(texto)
                     
@@ -91,7 +102,7 @@ class CerebroAgent(Agent):
                         nodo = data["node"]
                         
                         # Guardar Nodo
-                        await self.guardar_metrica_servidor(
+                        await self.agent.guardar_metrica_servidor(
                             nodo, 
                             float(data["cpu"]), 
                             float(data["ram"]), 
@@ -102,8 +113,10 @@ class CerebroAgent(Agent):
                         # Guardar VMs
                         vms = data["vms"]
                         count = 0
+                        high_load_vms = []
+
                         for vm in vms:
-                            await self.guardar_metrica_vm(
+                            await self.agent.guardar_metrica_vm(
                                 vm["name"],
                                 nodo,
                                 float(vm["cpu"]),
@@ -111,8 +124,16 @@ class CerebroAgent(Agent):
                                 vm["status"]
                             )
                             count += 1
+                            if float(vm["ram"]) > 90.0:
+                                high_load_vms.append(vm["name"])
                         
-                        print(f"   ↳ 💾 {count} MÉTRICAS DE VM GUARDADAS")
+                        # Log simple de resumen
+                        await self.agent.log_db(f"Procesado reporte de {nodo}: {count} VMs", "INFO", {"node": nodo, "vm_count": count})
+                        
+                        # Log de alerta si hay carga
+                        if high_load_vms:
+                             await self.agent.log_db(f"⚠️ Alta carga de RAM detectada en: {', '.join(high_load_vms)}", "WARNING", {"vms": high_load_vms})
+
                         return 
 
                 except json.JSONDecodeError:
@@ -131,7 +152,7 @@ class CerebroAgent(Agent):
                         ram = float(match_ram.group(1))
                         up = int(match_up.group(1))
 
-                        await self.guardar_metrica_servidor(nodo, cpu, ram, up)
+                        await self.agent.guardar_metrica_servidor(nodo, cpu, ram, up)
                         print(f"💾 GUARDADO EN BD (Texto): {nodo}")
                     else:
                         print(f"⚠️ Formato desconocido: {texto}")
@@ -139,7 +160,76 @@ class CerebroAgent(Agent):
                 except Exception as e:
                     print(f"❌ Error procesando: {e}")
 
+    class ComportamientoWatchdog(PeriodicBehaviour):
+        async def run(self):
+            # 1. Obtener VMs críticas
+            vms_criticas = await sync_to_async(list)(MaquinaVirtual.objects.filter(is_critical=True))
+            
+            if not vms_criticas:
+                return
+
+            for vm in vms_criticas:
+                try:
+                    # 2. Obtener estado real desde Proxmox
+                    nodo_nombre = await sync_to_async(lambda: vm.nodo.nombre)()
+                    
+                    # Simulación de recuperación (Simplificada como en origin/main)
+                    # En la realidad requeriría proxmox_manager configurado
+                    
+                    # Por ahora usamos el servicio básico si coincide el default
+                    from submodulos.proxmox_service import proxmox_service
+                    proxmox = proxmox_service.proxmox
+
+                    if not proxmox:
+                         return 
+
+                    # Función auxiliar síncrona
+                    def check_and_recover(vm_obj, node_name):
+                        try:
+                            if vm_obj.vm_type == 'qemu':
+                                status_info = proxmox.nodes(node_name).qemu(vm_obj.vmid).status.current.get()
+                            else:
+                                status_info = proxmox.nodes(node_name).lxc(vm_obj.vmid).status.current.get()
+                        except Exception as e:
+                            return f"Status Check Error: {e}"
+
+                        estado_actual = status_info.get('status', 'unknown')
+                        
+                        if estado_actual == 'stopped':
+                            # Intentar iniciar
+                            try:
+                                if vm_obj.vm_type == 'qemu':
+                                    proxmox.nodes(node_name).qemu(vm_obj.vmid).status.start.post()
+                                else:
+                                    proxmox.nodes(node_name).lxc(vm_obj.vmid).status.start.post()
+                                return "RESTARTED"
+                            except:
+                                return "FAILED_RESTART"
+                        
+                        return "OK"
+
+                    # Ejecutar en hilo aparte
+                    resultado = await sync_to_async(check_and_recover)(vm, nodo_nombre)
+                    
+                    if resultado == "RESTARTED":
+                        await self.agent.log_db(
+                            f"🚨 ALERTA: VM Crítica {vm.nombre} detectada APAGADA. 🚑 Protocolo de resurrección iniciado.", 
+                            "ACTION", 
+                            {"vm": vm.nombre, "node": nodo_nombre}
+                        )
+                    elif str(resultado).startswith("Error"):
+                         await self.agent.log_db(f"⚠️ Error verificando VM {vm.nombre}: {resultado}", "WARNING")
+
+                except Exception as e:
+                    await self.agent.log_db(f"Error en Watchdog para {vm.nombre}: {e}", "WARNING")
+
     async def setup(self):
         print("🔌 CEREBRO: Iniciando sistema de almacenamiento...")
+        
+        # Comportamiento de Escucha (Mensajes XMPP)
         b = self.ComportamientoEscucha()
         self.add_behaviour(b)
+        
+        # Comportamiento Watchdog (cada 30 segundos)
+        w = self.ComportamientoWatchdog(period=30)
+        self.add_behaviour(w)

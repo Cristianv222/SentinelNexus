@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}SentinelNexus - Consola de Agentes{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/htmx.org@1.9.6"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">🤖 Consola de Agentes</h2>
+            <p class="text-muted">Monitoreo de decisiones autónomas en tiempo real</p>
+        </div>
+        <div>
+           <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Volver</a>
+        </div>
+    </div>
+    
+    <div class="card bg-dark text-white border border-secondary shadow-lg">
+        <div class="card-header bg-black border-bottom border-secondary d-flex justify-content-between align-items-center py-3">
+            <span class="fw-bold text-uppercase"><i class="fas fa-terminal me-2 text-success"></i>Live Operations Feed</span>
+            <div class="d-flex align-items-center">
+                <span class="badge bg-success me-2 animate-pulse">● LIVE</span>
+                <span class="text-muted small">Update: 1s</span>
+            </div>
+        </div>
+        <div class="card-body p-0" style="height: 70vh; overflow-y: auto; background-color: #0d1117; font-family: 'Consolas', 'Monaco', monospace;">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead style="position: sticky; top: 0; background-color: #161b22; z-index: 10;">
+                    <tr>
+                        <th style="width: 120px;" class="ps-4">HORA</th>
+                        <th style="width: 150px;">AGENTE</th>
+                        <th style="width: 100px;">NIVEL</th>
+                        <th>MENSAJE</th>
+                    </tr>
+                </thead>
+                <tbody id="agent-logs-table" 
+                       hx-get="{% url 'agent_logs_partial' %}" 
+                       hx-trigger="every 1s" 
+                       hx-swap="innerHTML">
+                    {% include 'dashboard/partials/agent_log_rows.html' %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    
+    /* Scrollbar styling for terminal feel */
+    .card-body::-webkit-scrollbar {
+        width: 10px;
+    }
+    .card-body::-webkit-scrollbar-track {
+        background: #0d1117;
+    }
+    .card-body::-webkit-scrollbar-thumb {
+        background: #30363d;
+        border: 2px solid #0d1117;
+        border-radius: 4px;
+    }
+    .card-body::-webkit-scrollbar-thumb:hover {
+        background: #1a9fff;
+    }
+</style>
+{% endblock %}

@@ -43,6 +43,11 @@ urlpatterns = [
     # Dashboard principal (main) - USA: main_dashboard.html
     path('dashboard/', views.dashboard, name='dashboard'),
     
+    # Dashboard de Agentes (Live Console)
+    path('dashboard/agents/', views.agent_dashboard, name='agent_dashboard'),
+    path('dashboard/agents/logs/', views.agent_logs_partial, name='agent_logs_partial'),
+    path('nodes/<str:node_name>/vms/<int:vmid>/toggle-watchdog/', views.toggle_vm_watchdog, name='toggle_vm_watchdog'),
+    
     # Dashboard de métricas - USA: metrics_dashboard.html
     path('metrics/', views.metrics_dashboard, name='metrics_dashboard'),
 

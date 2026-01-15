@@ -19,6 +19,7 @@ from submodulos.models import (
     ProxmoxServer, Nodo, SistemaOperativo, MaquinaVirtual,
     TipoRecurso, RecursoFisico, AsignacionRecursosInicial,
     AuditoriaPeriodo, AuditoriaRecursosCabecera, AuditoriaRecursosDetalle,
+    AgentLog,
 )
 import threading
 import os
@@ -767,6 +768,131 @@ def sync_proxmox(request):
             messages.error(request, result['message'])
     
     return redirect('dashboard')
+
+def toggle_vm_watchdog(request, node_name, vmid):
+    if request.method == "POST":
+        try:
+            from submodulos.models import Nodo, MaquinaVirtual, ProxmoxServer, SistemaOperativo
+            from utils.proxmox_manager import proxmox_manager
+            import logging
+            
+            logger = logging.getLogger(__name__)
+
+            # ---------------------------------------------------------
+            # 1. OBTENER O CREAR NODO (Deep Scan)
+            # ---------------------------------------------------------
+            nodo = None
+            try:
+                nodo = Nodo.objects.get(nombre=node_name)
+            except Nodo.DoesNotExist:
+                # Escaneo profundo para encontrar al dueño del nodo
+                found_server = None
+                active_nodes = proxmox_manager.get_all_nodes()
+                
+                for key, config in active_nodes.items():
+                    # Priorizar configs de BD
+                    if config.get('type') != 'db': continue
+                    
+                    try:
+                        # Verificar si el nodo pertenece a este cluster
+                        px = proxmox_manager.get_connection(key)
+                        cluster_nodes = [n['node'] for n in px.nodes.get()]
+                        
+                        if node_name in cluster_nodes:
+                            found_server = ProxmoxServer.objects.get(pk=config['db_id'])
+                            break
+                    except Exception as e:
+                        logger.warning(f"Error escaneando {key}: {e}")
+                        continue
+                
+                if found_server:
+                    nodo = Nodo.objects.create(
+                        nombre=node_name,
+                        proxmox_server=found_server,
+                        hostname=node_name,
+                        ip_address='0.0.0.0'
+                    )
+                else:
+                    return HttpResponse(f"Error: Nodo '{node_name}' desconocido.", status=404)
+
+            # ---------------------------------------------------------
+            # 2. OBTENER O CREAR VM (Auto-Healing)
+            # ---------------------------------------------------------
+            vm = None
+            try:
+                vm = MaquinaVirtual.objects.get(nodo=nodo, vmid=vmid)
+            except MaquinaVirtual.DoesNotExist:
+                # Conectar a Proxmox
+                server_id = str(nodo.proxmox_server.id) if nodo.proxmox_server else None
+                proxmox = proxmox_manager.get_connection(server_id)
+                
+                if not proxmox:
+                     return HttpResponse("Error de conexión a Proxmox", status=500)
+
+                vm_data = None
+                vm_type = 'qemu'
+                
+                try:
+                    vm_data = proxmox.nodes(node_name).qemu(vmid).status.current.get()
+                except:
+                    try:
+                        vm_data = proxmox.nodes(node_name).lxc(vmid).status.current.get()
+                        vm_type = 'lxc'
+                    except:
+                        pass
+                
+                if not vm_data:
+                     return HttpResponse("Error: VM no encontrada en Proxmox", status=404)
+
+                so_default, _ = SistemaOperativo.objects.get_or_create(
+                    nombre='Unknown', defaults={'version': '1.0', 'tipo': 'linux', 'arquitectura': 'x64'}
+                )
+                
+                vm = MaquinaVirtual.objects.create(
+                    nodo=nodo,
+                    vmid=vmid,
+                    nombre=vm_data.get('name', f"VM-{vmid}"),
+                    hostname=vm_data.get('name', f"VM-{vmid}"),
+                    sistema_operativo=so_default,
+                    vm_type=vm_type,
+                    estado=vm_data.get('status', 'unknown'),
+                    is_monitored=True,
+                    is_critical=False
+                )
+
+            # ---------------------------------------------------------
+            # 3. TOGGLE & RENDER
+            # ---------------------------------------------------------
+            vm.is_critical = not vm.is_critical
+            vm.save()
+            
+            if vm.is_critical:
+                btn_class = "btn-danger"
+                icon_class = "fa-shield-alt"
+                title = "Protegida por Watchdog (Click para desactivar)"
+            else:
+                btn_class = "btn-secondary"
+                icon_class = "fa-shield-alt"
+                title = "Sin protección (Click para activar)"
+            
+            node_param = vm.nodo.nombre
+            
+            html = f'''
+            <button class="btn-action {btn_class}" 
+                    hx-post="/nodes/{node_param}/vms/{vmid}/toggle-watchdog/" 
+                    hx-swap="outerHTML"
+                    title="{title}">
+                <i class="fas {icon_class}"></i>
+            </button>
+            '''
+            return HttpResponse(html)
+            
+        except Exception as e:
+            import traceback
+            logger.error(f"Error toggle watchdog: {traceback.format_exc()}")
+            return HttpResponse(f"Error: {str(e)}", status=500)
+    
+    return HttpResponse("Método no permitido", status=405)
 
 @login_required
 def node_detail(request, node_name):
@@ -2508,6 +2634,14 @@ def node_detail_new(request, node_key):
         # Obtener información de los nodos físicos en este servidor Proxmox
         nodes_data = proxmox.nodes.get()
         vms = []
+
+        # [FIX] Obtener set de VMs críticas desde la BD para cruzar información
+        # Esto evita que se "pierda" el estado visual al recargar
+        from submodulos.models import MaquinaVirtual
+        critical_vms = set(MaquinaVirtual.objects.filter(
+            nodo__nombre__in=[n['node'] for n in nodes_data], 
+            is_critical=True
+        ).values_list('vmid', flat=True))
         
         for node in nodes_data:
             node_name = node['node']
@@ -2522,7 +2656,8 @@ def node_detail_new(request, node_key):
                         'status': vm['status'],
                         'type': 'qemu',
                         'node': node_name,
-                        'proxmox_node_key': node_key,  # Clave del nodo de configuración
+                        'proxmox_node_key': node_key,
+                        'is_critical': int(vm['vmid']) in critical_vms, # <--- Inject DB Status
                         'cpu': vm.get('cpu', 0) * 100,
                         'mem': (vm.get('mem', 0) / vm.get('maxmem', 1)) * 100 if vm.get('maxmem') else 0,
                         'mem_used': round(vm.get('mem', 0) / (1024*1024), 2),  # MB
@@ -2549,6 +2684,7 @@ def node_detail_new(request, node_key):
                         'type': 'lxc',
                         'node': node_name,
                         'proxmox_node_key': node_key,
+                        'is_critical': int(container['vmid']) in critical_vms, # <--- Inject DB Status
                         'cpu': container.get('cpu', 0) * 100,
                         'mem': (container.get('mem', 0) / container.get('maxmem', 1)) * 100 if container.get('maxmem') else 0,
                         'mem_used': round(container.get('mem', 0) / (1024*1024), 2),
@@ -4172,3 +4308,26 @@ def export_data_csv(request):
          writer.writerow([timezone.now(), 'Error', 'Modelo no reconocido', model_name])
          
     return response
+
+# ==========================================
+# AGENT DASHBOARD VIEWS
+# ==========================================
+
+@login_required
+def agent_dashboard(request):
+    """
+    Dashboard principal de Agentes (Live Console).
+    """
+    # Últimos 50 logs para carga inicial
+    logs = AgentLog.objects.all().order_by('-timestamp')[:50]
+    return render(request, 'dashboard/agent_console.html', {'logs': logs})
+
+@login_required
+def agent_logs_partial(request):
+    """
+    Vista parcial para HTMX polling.
+    Retorna solo las filas de la tabla con los logs más recientes.
+    """
+    # Últimos 20 logs para refresco rápido
+    logs = AgentLog.objects.all().order_by('-timestamp')[:20]
+    return render(request, 'dashboard/partials/agent_log_rows.html', {'logs': logs})
