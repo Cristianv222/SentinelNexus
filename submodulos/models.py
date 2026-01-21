@@ -378,6 +378,41 @@ class EstadisticaRecursos(models.Model):
     def __str__(self):
         return f"Estadística {self.estadistica_id} - {self.tipo_recurso} ({self.tipo_entidad})"
     
+# Modelo Server modificado para integrarse con ProxmoxServer
+class Server(models.Model):
+    name = models.CharField(max_length=100)
+    host = models.CharField(max_length=255)
+    node = models.CharField(max_length=100)
+    username = models.CharField(max_length=100)
+    password = models.CharField(max_length=100)
+    active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return self.name
+
+class MetricsAggregation(models.Model):
+    """Agregaciones diarias de métricas para reportes"""
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='metrics_aggregations')
+    date = models.DateField()
+    avg_cpu = models.FloatField(default=0.0)
+    avg_memory = models.FloatField(default=0.0)
+    avg_disk = models.FloatField(default=0.0)
+    max_cpu = models.FloatField(default=0.0)
+    max_memory = models.FloatField(default=0.0)
+    max_disk = models.FloatField(default=0.0)
+    total_network_in = models.BigIntegerField(default=0)
+    total_network_out = models.BigIntegerField(default=0)
+    vm_count = models.IntegerField(default=0)
+    active_vm_count = models.IntegerField(default=0)
+    
+    class Meta:
+        unique_together = ['server', 'date']
+        verbose_name = 'Agregación de Métricas'
+        verbose_name_plural = 'Agregaciones de Métricas'
+
+    def __str__(self):
+        return f"{self.server.name} - {self.date}"
+
 # Modelo para métricas locales
 class LocalMetric(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)

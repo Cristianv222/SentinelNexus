@@ -37,7 +37,7 @@ from django.db.models import Avg, Max, Q, Count
 from datetime import timedelta
 import json
 
-from submodulos.models import ServerMetrics, VMMetrics, MetricsAggregation, ProxmoxServer
+from submodulos.models import ServerMetric, VMMetric, MetricsAggregation, ProxmoxServer
 
 logger = logging.getLogger(__name__)
 
@@ -3856,7 +3856,7 @@ def metrics_view(request):
 @require_http_methods(["GET"])
 def api_metrics_realtime(request):
     """API endpoint para métricas en tiempo real"""
-    from submodulos.models import ServerMetrics
+    # from submodulos.models import ServerMetrics
     
     response_data = {
         'current_metrics': {},
@@ -3967,44 +3967,7 @@ def api_servers_metrics(request):
     })
     
 
-# sentinelnexus/views.py - Agregar esta función para obtener métricas de VMs
-def get_vm_metrics(request, node_id):
-    """Obtener métricas de todas las VMs de un nodo"""
-    try:
-        node = ProxmoxNode.objects.get(id=node_id) # type: ignore
-        vms = VirtualMachine.objects.filter(node=node, status='running') # type: ignore
-        
-        vm_metrics = []
-        for vm in vms:
-            # Obtener métricas históricas de las últimas 24 horas
-            end_time = timezone.now()
-            start_time = end_time - timedelta(hours=24)
-            
-            metrics = VMMetrics.objects.filter(
-                vm=vm,
-                timestamp__range=[start_time, end_time]
-            ).order_by('timestamp')
-            
-            vm_metrics.append({
-                'vm': vm,
-                'current_cpu': vm.cpu_usage,
-                'current_memory': vm.memory_usage,
-                'current_disk': vm.disk_usage,
-                'cpu_history': list(metrics.values_list('cpu_usage', 'timestamp')),
-                'memory_history': list(metrics.values_list('memory_usage', 'timestamp')),
-                'network_in': vm.network_in,
-                'network_out': vm.network_out,
-            })
-        
-        return JsonResponse({
-            'success': True,
-            'vms': vm_metrics
-        })
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
+# Function get_vm_metrics removed due to broken dependencies
 
 #--------------------------
     # Predicciones SARIMA para métricas
@@ -4129,17 +4092,7 @@ def get_metrics_predictions(request, server_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-@csrf_exempt
-def get_metrics_predictions(request, server_id):
-    """Función temporal de predicciones"""
-    return JsonResponse({
-        'success': True,
-        'predictions': {
-            'server_id': server_id,
-            'metrics': {},
-            'recommendations': []
-        }
-    })
+
 
 
 
@@ -4186,6 +4139,91 @@ def vms_metrics_api(request):
         return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"vms": data})
+
+@csrf_exempt
+def get_metrics_predictions(request, server_id):
+    """
+    Retorna las predicciones de un servidor específico en formato JSON para Chart.js.
+    """
+    from submodulos.models import ServerPrediction, ProxmoxServer
+    import pandas as pd
+    
+    try:
+        # 1. Obtener el servidor
+        try:
+            # Mapeo rápido de IDs frontend a Nombres en BD
+            server_name_map = {
+                1: 'Servidor Principal',
+                2: 'Servidor Secundario',
+                3: 'Servidor Backup'
+            }
+            name = server_name_map.get(int(server_id))
+            if name:
+                 server = ProxmoxServer.objects.filter(name=name).first()
+            else:
+                 server = ProxmoxServer.objects.get(id=server_id)
+                 
+            if not server:
+                # Fallback: intentar buscar por ID directo si falló el mapeo
+                server = ProxmoxServer.objects.filter(id=server_id).first()
+                if not server:
+                    return JsonResponse({'success': False, 'error': 'Server not found'}, status=404)
+
+        except Exception:
+             return JsonResponse({'success': False, 'error': 'Invalid Server ID'}, status=400)
+
+        # 2. Obtener predicciones futuras (desde ahora)
+        from django.utils import timezone as django_timezone
+        now = django_timezone.now()
+        preds = ServerPrediction.objects.filter(
+            server=server,
+            timestamp__gte=now
+        ).order_by('timestamp')[:24] # Próximas 24 horas
+
+        # 3. Formatear para Chart.js
+        timestamps = [p.timestamp.strftime('%H:%M') for p in preds]
+        cpu_values = [p.predicted_cpu_usage for p in preds]
+        mem_values = [p.predicted_memory_usage for p in preds]
+        
+        # 4. Generar recomendaciones simples
+        recommendations = []
+        max_cpu = max(cpu_values) if cpu_values else 0
+        max_mem = max(mem_values) if mem_values else 0
+        
+        if max_cpu > 80:
+            recommendations.append({
+                'type': 'warning',
+                'metric': 'CPU',
+                'message': f'Pico de CPU previsto: {max_cpu:.1f}%',
+                'action': 'Monitorizar procesos intensivos'
+            })
+            
+        if max_mem > 90:
+             recommendations.append({
+                'type': 'critical',
+                'metric': 'RAM',
+                'message': f'Pico de RAM previsto: {max_mem:.1f}%',
+                'action': 'Preparar liberación de memoria'
+            })
+
+        return JsonResponse({
+            'success': True,
+            'server_name': server.name,
+            'predictions': {
+                'cpu': {
+                    'labels': timestamps,
+                    'data': cpu_values
+                },
+                'memory': {
+                    'labels': timestamps,
+                    'data': mem_values
+                }
+            },
+            'recommendations': recommendations
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @login_required
 def data_dashboard(request):

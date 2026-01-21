@@ -101,7 +101,7 @@ urlpatterns = [
     
     # Vista de métricas
     path('metrics/', views.metrics_dashboard, name='metrics'),
-    path('api/predictions/server/<int:server_id>/', views.get_metrics_predictions, name='metrics_predictions'),
+    path('api/predictions/<int:server_id>/', views.get_metrics_predictions, name='metrics_predictions'),
     path('api/server/<int:server_id>/vms/', views.get_server_vms, name='server_vms'),
 
     path('api/vms/metrics/', views.vms_metrics_api, name='vms_metrics_api'),
