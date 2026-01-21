@@ -125,100 +125,88 @@ class CerebroAgent(Agent):
                 except Exception as e:
                     print(f"❌ Error procesando: {e}")
 
-    class ComportamientoWatchdog(PeriodicBehaviour):
-        async def run(self):
-            # 1. Obtener VMs críticas
-            vms_criticas = await sync_to_async(list)(MaquinaVirtual.objects.filter(is_critical=True))
-            
-            if not vms_criticas:
-                return
+    async def execute_watchdog_check(self):
+        """Lógica de Watchdog desacoplada para ejecución manual o automática"""
+        # 1. Obtener VMs críticas
+        vms_criticas = await sync_to_async(list)(MaquinaVirtual.objects.filter(is_critical=True))
+        
+        if not vms_criticas:
+            return
 
-            for vm in vms_criticas:
-                try:
-                    # 2. Obtener estado real desde Proxmox (Sincrono, envolver si bloquea mucho)
-                    # Nota: idealmente proxmox_service debería ser async o usar run_in_executor
-                    nodo_nombre = await sync_to_async(lambda: vm.nodo.nombre)()
-                    
-                    # [UPGRADE] Usar proxmox_manager para soportar múltiples servidores
-                    # Buscamos la conexión correcta para este nodo
-                    # Asumimos que el nombre del nodo es único o que se mapea correctamente en proxmox_manager
-                    
-                    from utils.proxmox_manager import proxmox_manager
-                    
-                    # Función auxiliar para ejecutar operaciones síncronas de proxmox en async
-                    def check_and_recover(vm_obj, node_name):
-                        # Intentar encontrar la conexión correcta para este nodo
-                        # Primero, buscamos si el nodo está en la lista de nodos activos del manager
-                        # El manager usa IDs de servidor o nombres arbitrarios como claves
-                        
-                        target_conn = None
-                        
-                        # Barrido rápido para encontrar quién tiene este nodo
-                        # (Optimización: Esto podría cachearse)
-                        all_nodes = proxmox_manager.get_all_nodes()
-                        for key, config in all_nodes.items():
-                             # Conectar y preguntar si tiene este nodo
-                             # O confiar en la metadata si la tuviéramos. 
-                             # Por ahora, intentamos conectar al que diga ser dueño o simplemente probamos
-                             # Como los nombres de nodos suelen ser únicos en un cluster, 
-                             # y aquí podríamos tener múltiples clusters, idealmente vm.nodo debería apuntar a un ProxmoxServer específico
-                             pass
-
-                        # Estrategia simplificada:
-                        # Usar el ID del servidor Proxmox si está disponible en el modelo Nodo -> ProxmoxServer
-                        server_id = None
+        for vm in vms_criticas:
+            try:
+                # 2. Obtener estado real desde Proxmox (Sincrono, envolver si bloquea mucho)
+                # Nota: idealmente proxmox_service debería ser async o usar run_in_executor
+                nodo_nombre = await sync_to_async(lambda: vm.nodo.nombre)()
+                
+                # [UPGRADE] Usar proxmox_manager para soportar múltiples servidores
+                # Buscamos la conexión correcta para este nodo
+                
+                from utils.proxmox_manager import proxmox_manager
+                
+                # Función auxiliar para ejecutar operaciones síncronas de proxmox en async
+                def check_and_recover(vm_obj, node_name):
+                    # Estrategia simplificada:
+                    # Usar el ID del servidor Proxmox si está disponible en el modelo Nodo -> ProxmoxServer
+                    server_id = None
+                    try:
                         if vm_obj.nodo.proxmox_server:
                             server_id = str(vm_obj.nodo.proxmox_server.id)
-                        
-                        proxmox = None
-                        if server_id:
-                             proxmox = proxmox_manager.get_connection(server_id)
-                        else:
-                             # Fallback: Intentar con el default o iterar (Costoso)
-                             # Por ahora usamos el método antiguo si no hay link
-                             from submodulos.proxmox_service import proxmox_service
-                             proxmox = proxmox_service.proxmox
-
-                        if not proxmox:
-                             return "Error: No connection"
-
-                        # Obtener estado actual
-                        # API: /nodes/{node}/qemu/{vmid}/status/current
-                        try:
-                            if vm_obj.vm_type == 'qemu':
-                                status_info = proxmox.nodes(node_name).qemu(vm_obj.vmid).status.current.get()
-                            else:
-                                status_info = proxmox.nodes(node_name).lxc(vm_obj.vmid).status.current.get()
-                        except Exception as e:
-                            return f"Status Check Error: {e}"
-
-                        estado_actual = status_info.get('status', 'unknown')
-                        
-                        # Lógica de resurrección
-                        if estado_actual == 'stopped':
-                            # Intentar iniciar
-                            if vm_obj.vm_type == 'qemu':
-                                proxmox.nodes(node_name).qemu(vm_obj.vmid).status.start.post()
-                            else:
-                                proxmox.nodes(node_name).lxc(vm_obj.vmid).status.start.post()
-                            return "RESTARTED"
-                        
-                        return "OK"
-
-                    # Ejecutar en hilo aparte para no bloquear el loop async de Spade
-                    resultado = await sync_to_async(check_and_recover)(vm, nodo_nombre)
+                    except:
+                        pass
                     
-                    if resultado == "RESTARTED":
-                        await self.agent.log_db(
-                            f"🚨 ALERTA: VM Crítica {vm.nombre} detectada APAGADA. 🚑 Protocolo de resurrección iniciado.", 
-                            "ACTION", 
-                            {"vm": vm.nombre, "node": nodo_nombre}
-                        )
-                    elif str(resultado).startswith("Error"):
-                         await self.agent.log_db(f"⚠️ Error verificando VM {vm.nombre}: {resultado}", "WARNING")
+                    proxmox = None
+                    if server_id:
+                            proxmox = proxmox_manager.get_connection(server_id)
+                    else:
+                            # Fallback: Intentar con el default o iterar (Costoso)
+                            from submodulos.proxmox_service import proxmox_service
+                            proxmox = proxmox_service.proxmox
 
-                except Exception as e:
-                    await self.agent.log_db(f"Error en Watchdog para {vm.nombre}: {e}", "WARNING")
+                    if not proxmox:
+                            return "Error: No connection"
+
+                    # Obtener estado actual
+                    # API: /nodes/{node}/qemu/{vmid}/status/current
+                    try:
+                        if vm_obj.vm_type == 'qemu':
+                            status_info = proxmox.nodes(node_name).qemu(vm_obj.vmid).status.current.get()
+                        else:
+                            status_info = proxmox.nodes(node_name).lxc(vm_obj.vmid).status.current.get()
+                    except Exception as e:
+                        return f"Status Check Error: {e}"
+
+                    estado_actual = status_info.get('status', 'unknown')
+                    
+                    # Lógica de resurrección
+                    if estado_actual == 'stopped':
+                        # Intentar iniciar
+                        if vm_obj.vm_type == 'qemu':
+                            proxmox.nodes(node_name).qemu(vm_obj.vmid).status.start.post()
+                        else:
+                            proxmox.nodes(node_name).lxc(vm_obj.vmid).status.start.post()
+                        return "RESTARTED"
+                    
+                    return "OK"
+
+                # Ejecutar en hilo aparte para no bloquear el loop async
+                resultado = await sync_to_async(check_and_recover)(vm, nodo_nombre)
+                
+                if resultado == "RESTARTED":
+                    await self.log_db(
+                        f"🚨 ALERTA: VM Crítica {vm.nombre} detectada APAGADA. 🚑 Protocolo de resurrección iniciado.", 
+                        "ACTION", 
+                        {"vm": vm.nombre, "node": nodo_nombre}
+                    )
+                elif str(resultado).startswith("Error"):
+                        await self.log_db(f"⚠️ Error verificando VM {vm.nombre}: {resultado}", "WARNING")
+
+            except Exception as e:
+                await self.log_db(f"Error en Watchdog para {vm.nombre}: {e}", "WARNING")
+
+    class ComportamientoWatchdog(PeriodicBehaviour):
+        async def run(self):
+            await self.agent.execute_watchdog_check()
 
     async def setup(self):
         print("🔌 CEREBRO: Iniciando sistema de almacenamiento...")

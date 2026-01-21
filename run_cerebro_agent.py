@@ -36,7 +36,17 @@ async def main():
         print("\n🛑 Deteniendo CEREBRO...")
         await agent.stop()
     except Exception as e:
-        print(f"\n❌ Error fatal: {e}")
+        print(f"\n❌ Error de Conexión XMPP: {e}")
+        print("⚠️ Habilitando MODO OFFLINE (Solo Watchdog)...")
+        
+        # Fallback Loop
+        try:
+            while True:
+                await agent.execute_watchdog_check()
+                await asyncio.sleep(30)
+        except KeyboardInterrupt:
+             print("\n🛑 Deteniendo CEREBRO (Offline)...")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
