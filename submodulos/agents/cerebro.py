@@ -7,6 +7,7 @@ from spade.behaviour import CyclicBehaviour
 from asgiref.sync import sync_to_async
 from submodulos.models import AgentServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo
 from submodulos.proxmox_service import proxmox_service
+from utils.proxmox_manager import proxmox_manager
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
 
 # ======================================================
@@ -141,8 +142,6 @@ class CerebroAgent(Agent):
                 
                 # [UPGRADE] Usar proxmox_manager para soportar múltiples servidores
                 # Buscamos la conexión correcta para este nodo
-                
-                from utils.proxmox_manager import proxmox_manager
                 
                 # Función auxiliar para ejecutar operaciones síncronas de proxmox en async
                 def check_and_recover(vm_obj, node_name):
