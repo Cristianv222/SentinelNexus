@@ -38,10 +38,10 @@ class ServerMetricAdmin(admin.ModelAdmin):
     """
     Tabla para el historial de salud de servidores Proxmox (SPADE).
     """
-    # Usamos los campos NUEVOS: node_name, cpu_usage, ram_usage, uptime, created_at
-    list_display = ('node_name', 'cpu_usage', 'ram_usage', 'uptime', 'created_at')
-    list_filter = ('node_name', 'created_at')
-    search_fields = ('node_name',)
+    # Actualizado para coincidir con el modelo ServerMetric existente
+    list_display = ('server', 'cpu_usage', 'memory_usage', 'uptime', 'timestamp')
+    list_filter = ('server', 'timestamp')
+    search_fields = ('server__name',)
 
 # --------------------------------------
 

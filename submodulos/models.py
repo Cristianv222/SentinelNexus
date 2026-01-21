@@ -419,12 +419,12 @@ class Server(models.Model):
 
 # Modelo para métricas de servidores Proxmox
 class ServerMetric(models.Model):
-    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name='metrics')
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name='metrics', null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
-    cpu_usage = models.FloatField()
-    memory_usage = models.FloatField()
-    disk_usage = models.FloatField()
-    uptime = models.BigIntegerField()
+    cpu_usage = models.FloatField(default=0.0)
+    memory_usage = models.FloatField(default=0.0)
+    disk_usage = models.FloatField(default=0.0)
+    uptime = models.BigIntegerField(default=0)
     
     class Meta:
         ordering = ['-timestamp']
@@ -439,9 +439,9 @@ class ServerMetric(models.Model):
 # Modelo para métricas locales
 class LocalMetric(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
-    cpu_usage = models.FloatField()
-    memory_usage = models.FloatField()
-    disk_usage = models.FloatField()
+    cpu_usage = models.FloatField(default=0.0)
+    memory_usage = models.FloatField(default=0.0)
+    disk_usage = models.FloatField(default=0.0)
     
     class Meta:
         ordering = ['-timestamp']
@@ -533,46 +533,45 @@ class MetricsAggregation(models.Model):
     def __str__(self):
         return f"{self.server.name} - {self.date}"
     
-# Crear modelo de datos (tablas)
-from django.db import models
 
-class ServerMetric(models.Model):
+
+class AgentServerMetric(models.Model):
     """
-    Tabla para guardar el historial de salud de los servidores Proxmox.
-    Cada fila es una 'foto' del estado en un momento exacto.
+    Tabla para guardar el historial de salud de los servidores Proxmox (Versión Agente).
     """
-    node_name = models.CharField(max_length=50, verbose_name="Nombre del Nodo")
-    cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
-    ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
-    uptime = models.IntegerField(verbose_name="Tiempo Encendido (seg)")
+    node_name = models.CharField(max_length=50, verbose_name="Nombre del Nodo", default="Unknown")
+    cpu_usage = models.FloatField(verbose_name="Uso CPU (%)", default=0.0)
+    ram_usage = models.FloatField(verbose_name="Uso RAM (%)", default=0.0)
+    uptime = models.IntegerField(verbose_name="Tiempo Encendido (seg)", default=0)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
 
     class Meta:
-        verbose_name = "Métrica de Servidor"
-        verbose_name_plural = "Métricas de Servidores"
-        ordering = ['-created_at'] # Lo más reciente primero
+        verbose_name = "Métrica de Servidor (Agente)"
+        verbose_name_plural = "Métricas de Servidores (Agente)"
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.node_name} - {self.created_at.strftime('%H:%M:%S')} (CPU: {self.cpu_usage}%)"
 
 class VMMetric(models.Model):
     """
-    Tabla para guardar el historial de salud de las VMs.
+    Tabla para guardar el historial de salud de las VMs (Versión Agente).
     """
-    vm_name = models.CharField(max_length=100, verbose_name="Nombre de VM")
-    server_origin = models.CharField(max_length=50, verbose_name="Servidor Origen")
-    cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
-    ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
-    status = models.CharField(max_length=20, verbose_name="Estado")
+    vm_name = models.CharField(max_length=100, verbose_name="Nombre de VM", default="Unknown")
+    server_origin = models.CharField(max_length=50, verbose_name="Servidor Origen", default="Unknown")
+    cpu_usage = models.FloatField(verbose_name="Uso CPU (%)", default=0.0)
+    ram_usage = models.FloatField(verbose_name="Uso RAM (%)", default=0.0)
+    status = models.CharField(max_length=20, verbose_name="Estado", default="unknown")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
 
     class Meta:
-        verbose_name = "Métrica de VM"
-        verbose_name_plural = "Métricas de VMs"
+        verbose_name = "Métrica de VM (Agente)"
+        verbose_name_plural = "Métricas de VMs (Agente)"
         ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.vm_name} ({self.server_origin}) - {self.created_at.strftime('%H:%M:%S')}"
+
 
 class AgentLog(models.Model):
     LEVELS = [

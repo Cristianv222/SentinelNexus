@@ -5,7 +5,7 @@ import json
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from asgiref.sync import sync_to_async
-from submodulos.models import ServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo
+from submodulos.models import AgentServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo
 from submodulos.proxmox_service import proxmox_service
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
 
@@ -23,7 +23,7 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
 class CerebroAgent(Agent):
     @sync_to_async
     def guardar_metrica_servidor(self, nodo, cpu, ram, up):
-        ServerMetric.objects.create(
+        AgentServerMetric.objects.create(
             node_name=nodo,
             cpu_usage=cpu,
             ram_usage=ram,
