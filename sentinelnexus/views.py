@@ -4245,8 +4245,8 @@ def data_dashboard(request):
     end_date = timezone.now()
     start_date = end_date - timedelta(days=7)
     
-    metrics_history = VMMetric.objects.filter(created_at__gte=start_date)\
-        .annotate(date=TruncDate('created_at'))\
+    metrics_history = VMMetric.objects.filter(timestamp__gte=start_date)\
+        .annotate(date=TruncDate('timestamp'))\
         .values('date')\
         .annotate(count=Count('id'))\
         .order_by('date')
@@ -4300,10 +4300,10 @@ def export_data_csv(request):
     if model_name == 'vm_metrics':
         # Exportar Historial de Métricas de VMs
         writer.writerow(['Timestamp', 'VM', 'Servidor Origen', 'Estado', 'CPU (%)', 'RAM (%)'])
-        queryset = VMMetric.objects.all().order_by('-created_at')
+        queryset = VMMetric.objects.all().order_by('-timestamp')
         for item in queryset:
             writer.writerow([
-                item.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                item.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
                 item.vm_name,
                 item.server_origin,
                 item.status,
@@ -4314,29 +4314,18 @@ def export_data_csv(request):
     elif model_name == 'server_metrics':
         # Exportar Historial de Métricas de Servidores
         writer.writerow(['Timestamp', 'Nodo', 'Uptime (s)', 'CPU (%)', 'RAM (%)'])
-        queryset = ServerMetric.objects.all().order_by('-created_at')
+        queryset = ServerMetric.objects.all().order_by('-timestamp')
         for item in queryset:
+            server_name = item.server.name if item.server else "Unknown"
             writer.writerow([
-                item.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                item.node_name,
+                item.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                server_name,
                 item.uptime,
                 str(item.cpu_usage).replace('.', ','),
                 str(item.ram_usage).replace('.', ',')
             ])
             
-    elif model_name == 'servers_config':
-        # Exportar Configuración de Servidores
-        writer.writerow(['Nombre', 'Hostname', 'Usuario', 'Nodo Proxmox', 'Activo', 'Creado'])
-        queryset = ProxmoxServer.objects.all()
-        for item in queryset:
-            writer.writerow([
-                item.name,
-                item.hostname,
-                item.username,
-                item.node_name,
-                'Sí' if item.is_active else 'No',
-                item.created_at.strftime('%Y-%m-%d')
-            ])
+
 
     # Fallback legacy export (si no se especifica modelo válido o para compatibilidad)
     else: 
@@ -4369,3 +4358,65 @@ def agent_logs_partial(request):
     # Últimos 20 logs para refresco rápido
     logs = AgentLog.objects.all().order_by('-timestamp')[:20]
     return render(request, 'dashboard/partials/agent_log_rows.html', {'logs': logs})
+
+@login_required
+def predictions_dashboard(request):
+    """
+    Vista para mostrar el dashboard de predicciones y anomalías.
+    """
+    from submodulos.models import ServerPrediction, VMPrediction
+    from django.utils import timezone
+    
+    now = timezone.now()
+    
+    # Obtener predicciones futuras (próximas 24 horas)
+    # Obtener predicciones recientes (últimos 30 días) para mostrar datos aunque sean pasados
+    start_date = now - timedelta(days=30)
+    
+    server_predictions = ServerPrediction.objects.filter(
+        timestamp__gte=start_date
+    ).order_by('-timestamp', 'server__name')[:50]
+    
+    # Obtener predicciones de VMs (muestra)
+    vm_predictions = VMPrediction.objects.filter(
+        timestamp__gte=start_date
+    ).order_by('-timestamp', 'vm__nombre')[:20]
+
+    today_min = now - timezone.timedelta(hours=24)
+    
+    # Lógica para detectar estado del agente
+    agent_offline = False
+    last_metric_time = None
+    demo_mode = False
+    
+    try:
+        # 1. Verificar cuándo fue el último dato recibido
+        last_metric = ServerMetric.objects.order_by('-timestamp').first()
+        if last_metric:
+            last_metric_time = last_metric.timestamp
+            # Si el último dato es más antiguo que 1 hora, el agente está offline
+            if (now - last_metric.timestamp).total_seconds() > 3600:
+                agent_offline = True
+        else:
+            # Nunca ha habido datos
+            agent_offline = True
+            
+        # 2. Si el agente está online, verificar si estamos en modo aprendizaje (demo)
+        if not agent_offline:
+            metric_count = ServerMetric.objects.filter(timestamp__gte=today_min).count()
+            # Asumimos una métrica cada 5-10 mins. 24h * 6 = ~144 métricas.
+            # Si hay muy pocas (< 24, aprox 2-4 horas de datos), seguimos en demo mode
+            demo_mode = metric_count < 24
+            
+    except Exception as e:
+        logger.warning(f"Error checking metrics for dashboard status: {e}")
+        # En caso de error, asumimos lo peor para obligar a revisar
+        agent_offline = True
+    
+    return render(request, 'predictions.html', {
+        'server_predictions': server_predictions,
+        'vm_predictions': vm_predictions,
+        'demo_mode': demo_mode,
+        'agent_offline': agent_offline,
+        'last_metric_time': last_metric_time
+    })

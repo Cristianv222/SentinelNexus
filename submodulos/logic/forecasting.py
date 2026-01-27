@@ -21,12 +21,11 @@ def train_and_predict_server(server_id, steps=24):
         start_date = timezone.now() - timedelta(days=30)
         
         # Corrigiendo modelo y campos: Usamos ServerMetric (singular) y created_at
-        # Nota: Asumimos que server.name (ProxmoxServer) == node_name (ServerMetric) o server.node_name
-        # En models.py ProxmoxServer tiene 'node_name', usaremos ese para filtrar
+        # Nota: Usamos la relación ForeignKey directa 'server'
         metrics = ServerMetric.objects.filter(
-            node_name=server.node_name, 
-            created_at__gte=start_date
-        ).order_by('created_at').values('created_at', 'cpu_usage', 'ram_usage')
+            server=server, 
+            timestamp__gte=start_date
+        ).order_by('timestamp').values('timestamp', 'cpu_usage', 'ram_usage')
         
         if not metrics:
             print(f"No hay métricas suficientes para el servidor {server.name} (nodo: {server.node_name})")
@@ -34,7 +33,7 @@ def train_and_predict_server(server_id, steps=24):
 
         df = pd.DataFrame(metrics)
         # Renombrar columnas para estandarizar
-        df.rename(columns={'created_at': 'timestamp', 'ram_usage': 'memory_usage'}, inplace=True)
+        df.rename(columns={'ram_usage': 'memory_usage'}, inplace=True)
         
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df.set_index('timestamp', inplace=True)
@@ -113,15 +112,15 @@ def train_and_predict_vm(vm_id, steps=24):
         # Filtramos por vm_name = vm.nombre
         metrics = VMMetric.objects.filter(
             vm_name=vm.nombre, 
-            created_at__gte=start_date
-        ).order_by('created_at').values('created_at', 'cpu_usage', 'ram_usage')
+            timestamp__gte=start_date
+        ).order_by('timestamp').values('timestamp', 'cpu_usage', 'ram_usage')
         
         if not metrics:
             print(f"No hay métricas suficientes para la VM {vm.nombre}")
             return
 
         df = pd.DataFrame(metrics)
-        df.rename(columns={'created_at': 'timestamp', 'ram_usage': 'memory_usage'}, inplace=True)
+        df.rename(columns={'ram_usage': 'memory_usage'}, inplace=True)
         
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df.set_index('timestamp', inplace=True)

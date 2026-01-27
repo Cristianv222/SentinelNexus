@@ -6,7 +6,8 @@ import re
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
 from asgiref.sync import sync_to_async
-from submodulos.models import ServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo, VMPrediction
+from submodulos.models import ServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo, VMPrediction, ProxmoxServer
+from submodulos.logic.forecasting import train_and_predict_server, train_and_predict_vm
 from submodulos.proxmox_service import proxmox_service
 from django.utils import timezone
 from datetime import timedelta
@@ -24,13 +25,34 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
 
 class CerebroAgent(Agent):
     @sync_to_async
-    def guardar_metrica_servidor(self, nodo, cpu, ram, up):
-        ServerMetric.objects.create(
-            node_name=nodo,
-            cpu_usage=cpu,
-            ram_usage=ram,
-            uptime=up
-        )
+    def guardar_metrica_servidor(self, nodo_nombre, cpu, ram, up):
+        try:
+            # Buscar el servidor Proxmox asociado a este nodo
+            # Prioridad 1: Coincidencia exacta de nombre de nodo
+            server = ProxmoxServer.objects.filter(node_name=nodo_nombre).first()
+            
+            # Prioridad 2: Buscar si el hostname contiene el nombre del nodo
+            if not server:
+                server = ProxmoxServer.objects.filter(hostname__icontains=nodo_nombre).first()
+            
+            # Fallback: Usar el primer servidor activo (útil para entornos dev/single node)
+            if not server:
+                server = ProxmoxServer.objects.filter(is_active=True).first()
+                if server:
+                    print(f"⚠️ Servidor para nodo {nodo_nombre} no encontrado explícitamente. Asignando a {server.name}")
+
+            if server:
+                ServerMetric.objects.create(
+                    server=server,
+                    cpu_usage=cpu,
+                    ram_usage=ram,
+                    uptime=up,
+                    disk_usage=0
+                )
+            else:
+                print(f"❌ ERROR CRÍTICO: No hay servidores Proxmox registrados en DB. No se puede guardar métrica de {nodo_nombre}")
+        except Exception as e:
+            print(f"❌ Error guardando métrica de servidor: {e}")
         
     @sync_to_async
     def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
@@ -223,6 +245,34 @@ class CerebroAgent(Agent):
                 except Exception as e:
                     await self.agent.log_db(f"Error en Watchdog para {vm.nombre}: {e}", "WARNING")
 
+    class ComportamientoPrediccion(PeriodicBehaviour):
+        async def run(self):
+            print("🔮 CEREBRO: Iniciando ciclo de predicción SARIMA...")
+            try:
+                # 1. Predicciones de Servidores
+                # Usamos sync_to_async para operaciones de BD bloqueantes
+                servidores = await sync_to_async(list)(ProxmoxServer.objects.filter(is_active=True))
+                
+                for server in servidores:
+                    print(f"   ↳ Prediciendo para servidor: {server.name}")
+                    # Ejecutar entrenamiento en hilo aparte para no bloquear el loop
+                    await sync_to_async(train_and_predict_server)(server.id)
+                
+                # 2. Predicciones de VMs (Anomalías)
+                # Solo predecimos para VMs monitoreadas para ahorrar recursos
+                vms = await sync_to_async(list)(MaquinaVirtual.objects.filter(is_monitored=True))
+                
+                for vm in vms:
+                    # Opcional: Solo predecir si tiene suficientes datos (se maneja en logic)
+                    await sync_to_async(train_and_predict_vm)(vm.vm_id)
+
+                await self.agent.log_db("Ciclo de predicción completado", "INFO")
+                print("✨ CEREBRO: Predicciones generadas exitosamente.")
+
+            except Exception as e:
+                print(f"❌ Error en ciclo de predicción: {e}")
+                await self.agent.log_db(f"Error en predicción: {e}", "WARNING")
+
     async def setup(self):
         print("🔌 CEREBRO: Iniciando sistema de almacenamiento...")
         
@@ -233,3 +283,8 @@ class CerebroAgent(Agent):
         # Comportamiento Watchdog (cada 30 segundos)
         w = self.ComportamientoWatchdog(period=30)
         self.add_behaviour(w)
+
+        # Comportamiento Predicción (cada 1 hora = 3600s)
+        # Inicia inmediatamente al arrancar y luego repite
+        p = self.ComportamientoPrediccion(period=3600)
+        self.add_behaviour(p)

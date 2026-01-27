@@ -434,19 +434,22 @@ class ServerMetric(models.Model):
     Tabla para guardar el historial de salud de los servidores Proxmox.
     Cada fila es una 'foto' del estado en un momento exacto.
     """
-    node_name = models.CharField(max_length=50, verbose_name="Nombre del Nodo")
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, null=True, blank=True, related_name='metrics')
+    # node_name eliminado porque no existe en la tabla real
     cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
-    ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
+    ram_usage = models.FloatField(verbose_name="Uso RAM (%)", db_column='memory_usage') # Mapear a columna real
+    disk_usage = models.FloatField(verbose_name="Uso Disco (%)", default=0) # Nueva columna detectada
     uptime = models.IntegerField(verbose_name="Tiempo Encendido (seg)")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
 
     class Meta:
         verbose_name = "Métrica de Servidor"
         verbose_name_plural = "Métricas de Servidores"
-        ordering = ['-created_at'] # Lo más reciente primero
+        ordering = ['-timestamp'] # Lo más reciente primero
 
     def __str__(self):
-        return f"{self.node_name} - {self.created_at.strftime('%H:%M:%S')} (CPU: {self.cpu_usage}%)"
+        name = self.server.name if self.server else "Unknown Server"
+        return f"{name} - {self.timestamp.strftime('%H:%M:%S')} (CPU: {self.cpu_usage}%)"
 
 class VMMetric(models.Model):
     """
@@ -457,15 +460,15 @@ class VMMetric(models.Model):
     cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
     ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
     status = models.CharField(max_length=20, verbose_name="Estado")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
 
     class Meta:
         verbose_name = "Métrica de VM"
         verbose_name_plural = "Métricas de VMs"
-        ordering = ['-created_at']
+        ordering = ['-timestamp']
 
     def __str__(self):
-        return f"{self.vm_name} ({self.server_origin}) - {self.created_at.strftime('%H:%M:%S')}"
+        return f"{self.vm_name} ({self.server_origin}) - {self.timestamp.strftime('%H:%M:%S')}"
         
 class ServerPrediction(models.Model):
     """
