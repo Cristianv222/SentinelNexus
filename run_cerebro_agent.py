@@ -15,9 +15,9 @@ from submodulos.agents.cerebro import CerebroAgent
 async def main():
     print("🧠 Inicializando CEREBRO SENTINEL...")
     
-    # Credenciales XMPP (Asegúrate de que el servidor Openfire/Ejabberd las tenga creadas)
-    jid = "cerebro@sentinelnexus.local"
-    password = "sentinel123"
+    # Credenciales XMPP (Desde variables de entorno o .env)
+    jid = os.environ.get('XMPP_JID', "cerebro@sentinelnexus.local")
+    password = os.environ.get('XMPP_PASSWORD', "sentinel123")
     
     agent = CerebroAgent(jid, password)
     
