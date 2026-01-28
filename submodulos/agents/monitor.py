@@ -1,7 +1,8 @@
-import time
 import asyncio
-import slixmpp
 import json
+import psutil
+import socket
+import slixmpp
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from spade.message import Message
@@ -29,36 +30,15 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
 class MonitorAgent(Agent):
     
     def __init__(self, jid, password, proxmox_ip, proxmox_user, proxmox_pass):
-        # Igualar constructor a CerebroAgent (sin argumentos extra de seguridad)
         super().__init__(jid, password)
         self.proxmox_ip = proxmox_ip
         self.proxmox_user = proxmox_user
         self.proxmox_pass = proxmox_pass
         
-        # --- PARCHE DE INSTANCIA (MODIFICACIÓN DIRECTA) ---
-        # El cliente aun no existe en __init__, se parcheará en setup()
-        # --------------------------------------------------
-        
-        # Override de seguridad adicional
-        self.use_tls = False
-        self.use_ssl = False
-        self.force_starttls = False
-        self.disable_starttls = True
-
     class ComportamientoVigilancia(CyclicBehaviour):
         async def run(self):
-            ip = self.agent.proxmox_ip
-            
+            # Recolección de métricas simulada/real
             try:
-                proxmox = ProxmoxAPI(
-                    ip,
-                    user=self.agent.proxmox_user,
-                    password=self.agent.proxmox_pass,
-                    verify_ssl=False,
-                    timeout=5 
-                )
-                
-                nodes = proxmox.nodes.get()
                 if not nodes:
                     return
 
