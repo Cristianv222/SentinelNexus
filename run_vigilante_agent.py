@@ -5,7 +5,26 @@ import time
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
+# Cargar variables de entorno
 load_dotenv()
+
+# ======================================================
+# 💉 PARCHE NUCLEAR DE INICIO (EJECUTAR ANTES DE TODO)
+# ======================================================
+import slixmpp
+if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
+    _original_init = slixmpp.ClientXMPP.__init__
+    def constructor_parcheado(self, *args, **kwargs):
+        print("💉 [RUNNER] EJECUTANDO PARCHE TLS NUCLEAR")
+        _original_init(self, *args, **kwargs)
+        self.plugin['feature_mechanisms'].unencrypted_plain = True
+        self.use_ssl = False
+        self.use_tls = False
+        self.force_starttls = False
+        self.disable_starttls = True
+    slixmpp.ClientXMPP.__init__ = constructor_parcheado
+    slixmpp.ClientXMPP._parche_aplicado = True
+# ======================================================
 
 from submodulos.agents.monitor import MonitorAgent
 
