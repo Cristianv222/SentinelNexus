@@ -13,15 +13,31 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ======================================================
 # 💉 PARCHE DE CONSTRUCTOR
 # ======================================================
+# 💉 PARCHE DE CONSTRUCTOR GLOBAL
+# Primero: Desactivar por defecto en la clase para que cualquier init lo tome como False
+slixmpp.ClientXMPP.force_starttls = False
+slixmpp.ClientXMPP.disable_starttls = True
+
 if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
     _original_init = slixmpp.ClientXMPP.__init__
     def constructor_parcheado(self, *args, **kwargs):
+        # Asegurar que kwargs tenga los flags correctos antes de llamar al init original
+        kwargs['force_starttls'] = False
+        kwargs['disable_starttls'] = True
+        
         _original_init(self, *args, **kwargs)
+        
+        # Post-init: Machacar cualquier plugin que se haya activado
         self.plugin['feature_mechanisms'].unencrypted_plain = True
         self.use_ssl = False
         self.use_tls = False
         self.force_starttls = False
-        self.disable_starttls = True
+        
+        # Intentar desactivar el plugin starttls si existe
+        if 'feature_starttls' in self.plugin:
+            self.plugin['feature_starttls'].required = False
+            self.plugin['feature_starttls'].enabled = False
+
     slixmpp.ClientXMPP.__init__ = constructor_parcheado
     slixmpp.ClientXMPP._parche_aplicado = True
 
