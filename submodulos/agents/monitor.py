@@ -36,29 +36,7 @@ class MonitorAgent(Agent):
         self.proxmox_pass = proxmox_pass
         
         # --- PARCHE DE INSTANCIA (MODIFICACIÓN DIRECTA) ---
-        print(f"🕵️ [MONITOR] INIT COMPLETO. Cliente tipo: {type(self.client)}")
-        
-        # 1. Eliminar plugin STARTTLS de la instancia
-        if hasattr(self, 'client'):
-            try:
-                if 'feature_starttls' in self.client.plugin:
-                    del self.client.plugin['feature_starttls']
-                    print("✅ [MONITOR] Plugin feature_starttls ELIMINADO de self.client")
-                else:
-                    print("⚠️ [MONITOR] feature_starttls no encontrado en plugins")
-                    
-                # 2. Forzar flags en el cliente (redundancia)
-                self.client.use_tls = False
-                self.client.use_ssl = False
-                self.client.force_starttls = False
-                self.client.disable_starttls = True
-                
-                # 3. Hackear feature mechanisms
-                if 'feature_mechanisms' in self.client.plugin:
-                    self.client.plugin['feature_mechanisms'].unencrypted_plain = True
-                    
-            except Exception as e:
-                print(f"❌ [MONITOR] Error aplicando parche de instancia: {e}")
+        # El cliente aun no existe en __init__, se parcheará en setup()
         # --------------------------------------------------
         
         # Override de seguridad adicional
@@ -146,22 +124,24 @@ class MonitorAgent(Agent):
     async def setup(self):
         print(f"🔌 MONITOR INICIADO PARA: {self.proxmox_ip}")
         
-        # --- ULTIMA LINEA DE DEFENSA: Desactivar en tiempo de ejecución ---
-        # A veces SPADE/Slixmpp reinicializan plugins al conectar.
-        # Aquí forzamos el apagado una vez más.
+        # --- ULTIMA LINEA DE DEFENSA v2: AMPUTACIÓN EN SETUP ---
         if hasattr(self, 'client') and self.client:
-             if 'feature_mechanisms' in self.client.plugin:
-                 self.client.plugin['feature_mechanisms'].unencrypted_plain = True
-             self.client.use_tls = False
-             self.client.use_ssl = False
-             self.client.force_starttls = False
-             self.client.disable_starttls = True
-             print(f"🛡️ SAFETY CHECK ({self.jid}): TLS Forced OFF inside setup()")
-        
-        # También en 'self' por si acaso
-        self.use_tls = False
-        self.force_starttls = False
-        self.disable_starttls = True
+             print(f"🛡️ [SETUP] Cliente detectado. Estado TLS: {self.client.use_tls}")
+             try:
+                 # 1. Cirugía de extracción de plugin
+                 if 'feature_starttls' in self.client.plugin:
+                     del self.client.plugin['feature_starttls']
+                     print("✅ [SETUP] Plugin feature_starttls ELIMINADO QUIRÚRGICAMENTE.")
+                 
+                 # 2. Configuración explícita
+                 if 'feature_mechanisms' in self.client.plugin:
+                     self.client.plugin['feature_mechanisms'].unencrypted_plain = True
+                 self.client.use_tls = False
+                 self.client.use_ssl = False
+                 self.client.force_starttls = False
+                 self.client.disable_starttls = True
+             except Exception as e:
+                 print(f"❌ [SETUP] Error en cirugía: {e}")
         # ------------------------------------------------------------------
 
         b = self.ComportamientoVigilancia()
