@@ -38,11 +38,23 @@ async def fake_start_tls(self):
 slixmpp.xmlstream.xmlstream.XMLStream.start_tls = fake_start_tls
 
 # 3. Parche al Feature Plugin (Negociación - CRITICO)
-# Esto evita el error "TLS failure: STARTTLS not supported... but required"
-# Forzamos que el plugin crea que NO es requerido nunca.
-slixmpp.features.feature_starttls.FeatureStartTLS.required = False
+try:
+    from slixmpp.features.feature_starttls import FeatureStartTLS
+    FeatureStartTLS.required = False
+    print("💉 [RUNNER] FeatureStartTLS.required forzado a False (Class Patch)")
+except ImportError:
+    # Intento alternativo por si la estructura cambia
+    try:
+        import slixmpp.features.feature_starttls as fstls
+        if hasattr(fstls, 'FeatureStartTLS'):
+            fstls.FeatureStartTLS.required = False
+            print("💉 [RUNNER] FeatureStartTLS.required forzado a False (Module Attribute Patch)")
+    except Exception as e:
+        print(f"⚠️ [RUNNER] No se pudo parchear FeatureStartTLS: {e}")
+except Exception as e:
+    print(f"⚠️ [RUNNER] Error parcheando FeatureStartTLS: {e}")
 
-print("💉 [RUNNER] OMNI-PARCHE APLICADO. SI ESTO FALLA, ES BRUJERIA.")
+print("💉 [RUNNER] OMNI-PARCHE V3 APLICADO.")
 sys.stdout.flush()
 
 # Flags Globales
