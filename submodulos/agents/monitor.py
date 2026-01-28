@@ -32,6 +32,13 @@ class MonitorAgent(Agent):
         self.proxmox_ip = proxmox_ip
         self.proxmox_user = proxmox_user
         self.proxmox_pass = proxmox_pass
+        
+        # --- REFUERZO DE SEGURIDAD (NUCLEAR) ---
+        self.use_tls = False
+        self.use_ssl = False
+        self.force_starttls = False
+        self.disable_starttls = True
+        print(f"🔒 SEGURIDAD AGENTE ({jid}): TLS={self.use_tls}, SSL={self.use_ssl}, ForceSTARTTLS={self.force_starttls}, Disable={self.disable_starttls}")
 
     class ComportamientoVigilancia(CyclicBehaviour):
         async def run(self):
