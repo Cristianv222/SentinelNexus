@@ -11,51 +11,25 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ======================================================
-# 💉 PARCHE DE CONSTRUCTOR
+# 💉 PARCHE DE CONEXIÓN (Idéntico a CerebroAgent)
 # ======================================================
-# 💉 PARCHE DE CONSTRUCTOR GLOBAL
-# Primero: Desactivar por defecto en la clase para que cualquier init lo tome como False
-slixmpp.ClientXMPP.force_starttls = False
-slixmpp.ClientXMPP.disable_starttls = True
-
 if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
     _original_init = slixmpp.ClientXMPP.__init__
     def constructor_parcheado(self, *args, **kwargs):
-        # Asegurar que kwargs tenga los flags correctos antes de llamar al init original
-        kwargs['force_starttls'] = False
-        kwargs['disable_starttls'] = True
-        
         _original_init(self, *args, **kwargs)
-        
-        # Post-init: Machacar cualquier plugin que se haya activado
         self.plugin['feature_mechanisms'].unencrypted_plain = True
         self.use_ssl = False
         self.use_tls = False
-        self.force_starttls = False
-        
-        # Intentar desactivar el plugin starttls si existe
-        if 'feature_starttls' in self.plugin:
-            self.plugin['feature_starttls'].required = False
-            self.plugin['feature_starttls'].enabled = False
-
     slixmpp.ClientXMPP.__init__ = constructor_parcheado
     slixmpp.ClientXMPP._parche_aplicado = True
 
 class MonitorAgent(Agent):
     
     def __init__(self, jid, password, proxmox_ip, proxmox_user, proxmox_pass):
-        # SPADE v3+: verify_security=False desactiva TLS obligatoria
-        super().__init__(jid, password, verify_security=False)
+        super().__init__(jid, password)
         self.proxmox_ip = proxmox_ip
         self.proxmox_user = proxmox_user
         self.proxmox_pass = proxmox_pass
-        
-        # --- REFUERZO DE SEGURIDAD (NUCLEAR) ---
-        self.use_tls = False
-        self.use_ssl = False
-        self.force_starttls = False
-        self.disable_starttls = True
-        print(f"🔒 SEGURIDAD AGENTE ({jid}): TLS={self.use_tls}, SSL={self.use_ssl}, ForceSTARTTLS={self.force_starttls}, Disable={self.disable_starttls}")
 
     class ComportamientoVigilancia(CyclicBehaviour):
         async def run(self):
