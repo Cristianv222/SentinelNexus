@@ -9,22 +9,42 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ======================================================
-# 💉 PARCHE NUCLEAR DE INICIO (EJECUTAR ANTES DE TODO)
+# 💉 OMNI-PARCHE DE SEGURIDAD (APAGADO TOTAL DE TLS)
 # ======================================================
 import sys
 import asyncio
+import slixmpp
 import slixmpp.xmlstream.xmlstream
+import slixmpp.features.feature_starttls
 
-# Patch: Reemplazar el método start_tls para que no haga NADA
+print("💉 [RUNNER] INICIANDO PROTOCOLO DE APAGADO TLS...")
+
+# 1. Parche al Constructor (Configuración base)
+_original_init = slixmpp.ClientXMPP.__init__
+def constructor_parcheado(self, *args, **kwargs):
+    print("💉 [RUNNER] Constructor ClientXMPP ejecutado (Parche aplicado)")
+    _original_init(self, *args, **kwargs)
+    self.plugin['feature_mechanisms'].unencrypted_plain = True
+    self.use_ssl = False
+    self.use_tls = False
+    self.force_starttls = False
+    self.disable_starttls = True
+slixmpp.ClientXMPP.__init__ = constructor_parcheado
+
+# 2. Parche al Método start_tls (Ejecución)
 async def fake_start_tls(self):
-    print("🛡️ [GOD MODE] start_tls interceptado y anulado.")
+    print("🛡️ [GOD MODE] start_tls bloqueado exitosamente.")
     return True
-
 slixmpp.xmlstream.xmlstream.XMLStream.start_tls = fake_start_tls
-print("💉 [RUNNER] GOD MODE ACTIVADO: start_tls eliminado.")
+
+# 3. Parche al Feature Plugin (Negociación)
+# Forzamos que el plugin crea que NO es requerido, incluso si el servidor lo pide
+slixmpp.features.feature_starttls.FeatureStartTLS.required = False
+
+print("💉 [RUNNER] TODOS LOS PARCHES APLICADOS. TLS DEBE ESTAR MUERTO.")
 sys.stdout.flush()
 
-# (Opcional) Mantener flags por si acaso
+# Flags Globales
 slixmpp.ClientXMPP.force_starttls = False
 slixmpp.ClientXMPP.disable_starttls = True
 # ======================================================
