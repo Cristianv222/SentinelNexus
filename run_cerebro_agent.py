@@ -21,6 +21,12 @@ async def main():
     
     agent = CerebroAgent(jid, password)
     
+    # FORZAR MODO NO-ENCRIPTADO (Para servidores internos sin SSL)
+    agent.use_tls = False
+    agent.use_ssl = False
+    agent.force_starttls = False
+    agent.disable_starttls = True
+    
     try:
         await agent.start()
         print("✅ Cerebro conectado y operando.")
