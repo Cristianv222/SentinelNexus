@@ -11,19 +11,22 @@ load_dotenv()
 # ======================================================
 # 💉 PARCHE NUCLEAR DE INICIO (EJECUTAR ANTES DE TODO)
 # ======================================================
-import slixmpp
-if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
-    _original_init = slixmpp.ClientXMPP.__init__
-    def constructor_parcheado(self, *args, **kwargs):
-        print("💉 [RUNNER] EJECUTANDO PARCHE TLS NUCLEAR")
-        _original_init(self, *args, **kwargs)
-        self.plugin['feature_mechanisms'].unencrypted_plain = True
-        self.use_ssl = False
-        self.use_tls = False
-        self.force_starttls = False
-        self.disable_starttls = True
-    slixmpp.ClientXMPP.__init__ = constructor_parcheado
-    slixmpp.ClientXMPP._parche_aplicado = True
+import sys
+import asyncio
+import slixmpp.xmlstream.xmlstream
+
+# Patch: Reemplazar el método start_tls para que no haga NADA
+async def fake_start_tls(self):
+    print("🛡️ [GOD MODE] start_tls interceptado y anulado.")
+    return True
+
+slixmpp.xmlstream.xmlstream.XMLStream.start_tls = fake_start_tls
+print("💉 [RUNNER] GOD MODE ACTIVADO: start_tls eliminado.")
+sys.stdout.flush()
+
+# (Opcional) Mantener flags por si acaso
+slixmpp.ClientXMPP.force_starttls = False
+slixmpp.ClientXMPP.disable_starttls = True
 # ======================================================
 
 from submodulos.agents.monitor import MonitorAgent
