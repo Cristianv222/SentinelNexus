@@ -35,9 +35,12 @@ async def main():
             agent = MonitorAgent(jid, xmpp_pass, host, user, password)
             
             # --- PARCHE DE SEGURIDAD TLS (Igual que en Cerebro) ---
-            # --- EL PARCHE YA ESTÁ EN MONITOR.PY ---
-            # No es necesario tocar el cliente aquí
-            # ---------------------------------------
+            # --- PARCHE DE SEGURIDAD TLS (Acceso Directo al Agente) ---
+            agent.use_tls = False
+            agent.use_ssl = False
+            agent.force_starttls = False
+            agent.disable_starttls = True
+            # ------------------------------------------------------
             # ------------------------------------------------------
 
             agents.append(agent)
