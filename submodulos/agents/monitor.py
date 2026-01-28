@@ -44,7 +44,8 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
 class MonitorAgent(Agent):
     
     def __init__(self, jid, password, proxmox_ip, proxmox_user, proxmox_pass):
-        super().__init__(jid, password)
+        # SPADE v3+: verify_security=False desactiva TLS obligatoria
+        super().__init__(jid, password, verify_security=False)
         self.proxmox_ip = proxmox_ip
         self.proxmox_user = proxmox_user
         self.proxmox_pass = proxmox_pass
