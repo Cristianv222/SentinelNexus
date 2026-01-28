@@ -1,0 +1,14 @@
+[Unit]
+Description=SentinelNexus Vigilante Agent (Data Collector)
+After=network.target cerebro.service
+
+[Service]
+User=root
+WorkingDirectory=/home/django_user/apps/sentinel_nexus
+ExecStart=/home/django_user/apps/sentinel_nexus/venv/bin/python run_vigilante_agent.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
