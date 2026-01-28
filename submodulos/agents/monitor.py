@@ -117,5 +117,24 @@ class MonitorAgent(Agent):
 
     async def setup(self):
         print(f"🔌 MONITOR INICIADO PARA: {self.proxmox_ip}")
+        
+        # --- ULTIMA LINEA DE DEFENSA: Desactivar en tiempo de ejecución ---
+        # A veces SPADE/Slixmpp reinicializan plugins al conectar.
+        # Aquí forzamos el apagado una vez más.
+        if hasattr(self, 'client') and self.client:
+             if 'feature_mechanisms' in self.client.plugin:
+                 self.client.plugin['feature_mechanisms'].unencrypted_plain = True
+             self.client.use_tls = False
+             self.client.use_ssl = False
+             self.client.force_starttls = False
+             self.client.disable_starttls = True
+             print(f"🛡️ SAFETY CHECK ({self.jid}): TLS Forced OFF inside setup()")
+        
+        # También en 'self' por si acaso
+        self.use_tls = False
+        self.force_starttls = False
+        self.disable_starttls = True
+        # ------------------------------------------------------------------
+
         b = self.ComportamientoVigilancia()
         self.add_behaviour(b)
