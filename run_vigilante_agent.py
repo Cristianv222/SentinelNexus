@@ -19,43 +19,36 @@ import slixmpp.features.feature_starttls
 
 print("💉 [RUNNER] INICIANDO PROTOCOLO DE APAGADO TLS (REDUX)...")
 
-# 1. Parche al Constructor (Configuración base)
+# 1. Parche al Constructor (Configuración base + AMPUTACIÓN)
 _original_init = slixmpp.ClientXMPP.__init__
 def constructor_parcheado(self, *args, **kwargs):
-    print("💉 [RUNNER] Constructor ClientXMPP ejecutado")
+    print("💉 [RUNNER] Constructor Ejecutado. Intentando eliminar TLS...")
     _original_init(self, *args, **kwargs)
+    
+    # Configuración estándar para texto plano
     self.plugin['feature_mechanisms'].unencrypted_plain = True
     self.use_ssl = False
     self.use_tls = False
     self.force_starttls = False
     self.disable_starttls = True
+
+    # 🛑 AMPUTACIÓN: Eliminar el plugin de STARTTLS si existe
+    # Esto evita que el cliente sepa siquiera cómo negociar TLS.
+    if 'feature_starttls' in self.plugin:
+        del self.plugin['feature_starttls']
+        print("💣 [RUNNER] Plugin 'feature_starttls' ELIMINADO de la instancia.")
+    else:
+        print("⚠️ [RUNNER] Plugin 'feature_starttls' no encontrado en instancia (¿Ya eliminado?).")
+
 slixmpp.ClientXMPP.__init__ = constructor_parcheado
 
-# 2. Parche al Método start_tls (Ejecución)
+# 2. Parche al Método start_tls (Redundancia)
 async def fake_start_tls(self):
-    print("🛡️ [GOD MODE] start_tls bloqueado exitosamente.")
+    print("🛡️ [GOD MODE] start_tls bloqueado.")
     return True
 slixmpp.xmlstream.xmlstream.XMLStream.start_tls = fake_start_tls
 
-# 3. Parche al Feature Plugin (Negociación - CRITICO)
-# 3. Parche al Feature Plugin (Negociación - CRITICO)
-try:
-    # LA CLAVE: El nombre correcto es FeatureSTARTTLS (STARTTLS en mayúsculas)
-    from slixmpp.features.feature_starttls import FeatureSTARTTLS
-    FeatureSTARTTLS.required = False
-    print("💉 [RUNNER] FeatureSTARTTLS.required forzado a False (CORRECTED CLASS PATCH)")
-except ImportError:
-    try:
-        # Intento deep import por si acaso
-        from slixmpp.features.feature_starttls.starttls import FeatureSTARTTLS
-        FeatureSTARTTLS.required = False
-        print("💉 [RUNNER] FeatureSTARTTLS.required forzado a False (DEEP IMPORT PATCH)")
-    except Exception as e:
-        print(f"⚠️ [RUNNER] No se pudo importar FeatureSTARTTLS (Deep): {e}")
-except Exception as e:
-    print(f"⚠️ [RUNNER] Error parcheando FeatureSTARTTLS: {e}")
-
-print("💉 [RUNNER] OMNI-PARCHE V4 (TYPO FIXED) APLICADO.")
+print("💉 [RUNNER] ESTRATEGIA DE AMPUTACIÓN ACTIVADA.")
 sys.stdout.flush()
 
 # Flags Globales
