@@ -35,6 +35,32 @@ class MonitorAgent(Agent):
         self.proxmox_user = proxmox_user
         self.proxmox_pass = proxmox_pass
         
+        # --- PARCHE DE INSTANCIA (MODIFICACIÓN DIRECTA) ---
+        print(f"🕵️ [MONITOR] INIT COMPLETO. Cliente tipo: {type(self.client)}")
+        
+        # 1. Eliminar plugin STARTTLS de la instancia
+        if hasattr(self, 'client'):
+            try:
+                if 'feature_starttls' in self.client.plugin:
+                    del self.client.plugin['feature_starttls']
+                    print("✅ [MONITOR] Plugin feature_starttls ELIMINADO de self.client")
+                else:
+                    print("⚠️ [MONITOR] feature_starttls no encontrado en plugins")
+                    
+                # 2. Forzar flags en el cliente (redundancia)
+                self.client.use_tls = False
+                self.client.use_ssl = False
+                self.client.force_starttls = False
+                self.client.disable_starttls = True
+                
+                # 3. Hackear feature mechanisms
+                if 'feature_mechanisms' in self.client.plugin:
+                    self.client.plugin['feature_mechanisms'].unencrypted_plain = True
+                    
+            except Exception as e:
+                print(f"❌ [MONITOR] Error aplicando parche de instancia: {e}")
+        # --------------------------------------------------
+        
         # Override de seguridad adicional
         self.use_tls = False
         self.use_ssl = False
