@@ -38,23 +38,24 @@ async def fake_start_tls(self):
 slixmpp.xmlstream.xmlstream.XMLStream.start_tls = fake_start_tls
 
 # 3. Parche al Feature Plugin (Negociación - CRITICO)
+# 3. Parche al Feature Plugin (Negociación - CRITICO)
 try:
-    from slixmpp.features.feature_starttls import FeatureStartTLS
-    FeatureStartTLS.required = False
-    print("💉 [RUNNER] FeatureStartTLS.required forzado a False (Class Patch)")
+    # LA CLAVE: El nombre correcto es FeatureSTARTTLS (STARTTLS en mayúsculas)
+    from slixmpp.features.feature_starttls import FeatureSTARTTLS
+    FeatureSTARTTLS.required = False
+    print("💉 [RUNNER] FeatureSTARTTLS.required forzado a False (CORRECTED CLASS PATCH)")
 except ImportError:
-    # Intento alternativo por si la estructura cambia
     try:
-        import slixmpp.features.feature_starttls as fstls
-        if hasattr(fstls, 'FeatureStartTLS'):
-            fstls.FeatureStartTLS.required = False
-            print("💉 [RUNNER] FeatureStartTLS.required forzado a False (Module Attribute Patch)")
+        # Intento deep import por si acaso
+        from slixmpp.features.feature_starttls.starttls import FeatureSTARTTLS
+        FeatureSTARTTLS.required = False
+        print("💉 [RUNNER] FeatureSTARTTLS.required forzado a False (DEEP IMPORT PATCH)")
     except Exception as e:
-        print(f"⚠️ [RUNNER] No se pudo parchear FeatureStartTLS: {e}")
+        print(f"⚠️ [RUNNER] No se pudo importar FeatureSTARTTLS (Deep): {e}")
 except Exception as e:
-    print(f"⚠️ [RUNNER] Error parcheando FeatureStartTLS: {e}")
+    print(f"⚠️ [RUNNER] Error parcheando FeatureSTARTTLS: {e}")
 
-print("💉 [RUNNER] OMNI-PARCHE V3 APLICADO.")
+print("💉 [RUNNER] OMNI-PARCHE V4 (TYPO FIXED) APLICADO.")
 sys.stdout.flush()
 
 # Flags Globales
