@@ -20,16 +20,24 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
         self.plugin['feature_mechanisms'].unencrypted_plain = True
         self.use_ssl = False
         self.use_tls = False
+        self.force_starttls = False
+        self.disable_starttls = True
     slixmpp.ClientXMPP.__init__ = constructor_parcheado
     slixmpp.ClientXMPP._parche_aplicado = True
 
 class MonitorAgent(Agent):
     
     def __init__(self, jid, password, proxmox_ip, proxmox_user, proxmox_pass):
-        super().__init__(jid, password)
+        super().__init__(jid, password, verify_security=False)
         self.proxmox_ip = proxmox_ip
         self.proxmox_user = proxmox_user
         self.proxmox_pass = proxmox_pass
+        
+        # Override de seguridad adicional
+        self.use_tls = False
+        self.use_ssl = False
+        self.force_starttls = False
+        self.disable_starttls = True
 
     class ComportamientoVigilancia(CyclicBehaviour):
         async def run(self):
