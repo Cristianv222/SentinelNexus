@@ -16,6 +16,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
     _original_init = slixmpp.ClientXMPP.__init__
     def constructor_parcheado(self, *args, **kwargs):
+        print("💉 [MONITOR] Ejecutando constructor parcheado de Slixmpp")
         _original_init(self, *args, **kwargs)
         self.plugin['feature_mechanisms'].unencrypted_plain = True
         self.use_ssl = False
@@ -28,7 +29,8 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
 class MonitorAgent(Agent):
     
     def __init__(self, jid, password, proxmox_ip, proxmox_user, proxmox_pass):
-        super().__init__(jid, password, verify_security=False)
+        # Igualar constructor a CerebroAgent (sin argumentos extra de seguridad)
+        super().__init__(jid, password)
         self.proxmox_ip = proxmox_ip
         self.proxmox_user = proxmox_user
         self.proxmox_pass = proxmox_pass
