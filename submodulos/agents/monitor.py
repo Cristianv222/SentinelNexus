@@ -20,6 +20,8 @@ if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
         self.plugin['feature_mechanisms'].unencrypted_plain = True
         self.use_ssl = False
         self.use_tls = False
+        self.force_starttls = False
+        self.disable_starttls = True
     slixmpp.ClientXMPP.__init__ = constructor_parcheado
     slixmpp.ClientXMPP._parche_aplicado = True
 
