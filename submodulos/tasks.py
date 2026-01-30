@@ -109,7 +109,7 @@ def collect_local_metrics_hybrid():
 def monitor_all_proxmox_servers():
     """Monitorea todos los servidores Proxmox configurados"""
     from utils.proxmox_manager import proxmox_manager
-    from submodulos.models import ServerMetrics, ProxmoxServer
+    from submodulos.models import ServerMetric, ProxmoxServer
     
     results = []
     
@@ -139,17 +139,13 @@ def monitor_all_proxmox_servers():
                 node_status = proxmox.nodes(node_name).status.get()
                 
                 # Guardar métricas del NODO
-                ServerMetrics.objects.create(
+                ServerMetric.objects.create(
                     server=server,
                     cpu_usage=node_status.get('cpu', 0) * 100,
-                    memory_usage=(node_status['memory']['used'] / node_status['memory']['total']) * 100,
-                    memory_total=node_status['memory']['total'],
-                    memory_used=node_status['memory']['used'],
+                    ram_usage=(node_status['memory']['used'] / node_status['memory']['total']) * 100,
                     disk_usage=(node_status['rootfs']['used'] / node_status['rootfs']['total']) * 100,
-                    disk_total=node_status['rootfs']['total'],
-                    disk_used=node_status['rootfs']['used'],
                     uptime=node_status.get('uptime', 0),
-                    status='online'
+                    # status field removed as it does not exist in ServerMetric model
                 )
                 
                 # --- NUEVO: Recolectar métricas de las VMs en este nodo ---
