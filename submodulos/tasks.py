@@ -140,12 +140,12 @@ def monitor_all_proxmox_servers():
                 
                 # Guardar métricas del NODO
                 ServerMetric.objects.create(
-                    server=server,
+                    node_name=node_config.get('name', node_name), # Usar node_name en lugar de server= object
                     cpu_usage=node_status.get('cpu', 0) * 100,
                     ram_usage=(node_status['memory']['used'] / node_status['memory']['total']) * 100,
-                    disk_usage=(node_status['rootfs']['used'] / node_status['rootfs']['total']) * 100,
                     uptime=node_status.get('uptime', 0),
-                    # status field removed as it does not exist in ServerMetric model
+                    # disk_usage no existe en el modelo ServerMetric del servidor
+                    # created_at se llena automatico con auto_now_add
                 )
                 
                 # --- NUEVO: Recolectar métricas de las VMs en este nodo ---
