@@ -6,20 +6,20 @@ from datetime import timedelta
 from submodulos.models import ProxmoxServer, ServerMetric, ServerPrediction
 from submodulos.models import MaquinaVirtual, VMMetric, VMPrediction
 
-def train_and_predict_server(server_id, steps=24):
+def train_and_predict_server(server_id, steps=48):
     """
     Entrena un modelo SARIMA para un servidor específico y genera predicciones.
     
     Args:
         server_id (int): ID del ProxmoxServer.
-        steps (int): Número de pasos (horas) a predecir.
+        steps (int): Número de pasos (horas) a predecir. Default: 48 horas (2 días).
     """
     try:
         server = ProxmoxServer.objects.get(pk=server_id)
         
         # 1. Obtener datos históricos (últimos 30 días para entrenar)
         start_date = timezone.now() - timedelta(days=30)
-        
+ 
         # Corrigiendo modelo y campos: Usamos ServerMetric (singular) y created_at
         # Nota: Usamos la relación ForeignKey directa 'server'
         metrics = ServerMetric.objects.filter(
@@ -98,7 +98,7 @@ def train_and_predict_server(server_id, steps=24):
     except Exception as e:
         print(f"Error generando predicciones para server {server_id}: {str(e)}")
 
-def train_and_predict_vm(vm_id, steps=24):
+def train_and_predict_vm(vm_id, steps=48):
     """
     Genera predicciones para una VM específica para detección de anomalías.
     """

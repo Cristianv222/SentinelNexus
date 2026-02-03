@@ -15,17 +15,22 @@ from datetime import timedelta
 # ======================================================
 # 💉 PARCHE DE CONEXIÓN
 # ======================================================
-if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
-    _original_init = slixmpp.ClientXMPP.__init__
-    def constructor_parcheado(self, *args, **kwargs):
-        _original_init(self, *args, **kwargs)
-        self.plugin['feature_mechanisms'].unencrypted_plain = True
-        self.use_ssl = False
-        self.use_tls = False
-    slixmpp.ClientXMPP.__init__ = constructor_parcheado
-    slixmpp.ClientXMPP._parche_aplicado = True
+# ======================================================
+# 💉 CONFIGURACIÓN PERMISIVA DE TLS (Idéntica a Vigilante/Monitor)
+# ======================================================
+# Parche interno eliminado para evitar conflictos con run_cerebro_agent.py
+# La configuración TLS se maneja globalmente en el script de ejecución.
+
 
 class CerebroAgent(Agent):
+    def __init__(self, *args, **kwargs):
+        print(f"[CEREBRO AGENT] Init called with args={args} kwargs={kwargs}")
+        kwargs.pop('host', None)
+        kwargs.pop('port', None)
+        super().__init__(*args, **kwargs)
+        # Ensure our settings apply - REMOVED TO RESPECT PATCH
+
+
     @sync_to_async
     def guardar_metrica_servidor(self, nodo_nombre, cpu, ram, up):
         try:
@@ -41,7 +46,7 @@ class CerebroAgent(Agent):
             if not server:
                 server = ProxmoxServer.objects.filter(is_active=True).first()
                 if server:
-                    print(f"⚠️ Servidor para nodo {nodo_nombre} no encontrado explícitamente. Asignando a {server.name}")
+                    print(f"Servidor para nodo {nodo_nombre} no encontrado explicitamente. Asignando a {server.name}")
 
             if server:
                 ServerMetric.objects.create(
@@ -52,9 +57,9 @@ class CerebroAgent(Agent):
                     disk_usage=0
                 )
             else:
-                print(f"❌ ERROR CRÍTICO: No hay servidores Proxmox registrados en DB. No se puede guardar métrica de {nodo_nombre}")
+                print(f"ERROR CRITICO: No hay servidores Proxmox registrados en DB. No se puede guardar metrica de {nodo_nombre}")
         except Exception as e:
-            print(f"❌ Error guardando métrica de servidor: {e}")
+            print(f"Error guardando metrica de servidor: {e}")
         
     @sync_to_async
     def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
@@ -88,7 +93,7 @@ class CerebroAgent(Agent):
                     diff_cpu = abs(prediction.predicted_cpu_usage - cpu)
                     
                     if diff_cpu > umbrale_cpu:
-                        msg = f"⚠️ ANOMALÍA DETECTADA en {nombre}: CPU Real {cpu}% vs Predicho {prediction.predicted_cpu_usage:.2f}%"
+                        msg = f"ANOMALIA DETECTADA en {nombre}: CPU Real {cpu}% vs Predicho {prediction.predicted_cpu_usage:.2f}%"
                         print(msg)
                         # Registrar anomalía como warning tambien
                         AgentLog.objects.create(
@@ -156,7 +161,7 @@ class CerebroAgent(Agent):
                         
                         # Log de alerta si hay carga
                         if high_load_vms:
-                             await self.agent.log_db(f"⚠️ Alta carga de RAM detectada en: {', '.join(high_load_vms)}", "WARNING", {"vms": high_load_vms})
+                             await self.agent.log_db(f"Alta carga de RAM detectada en: {', '.join(high_load_vms)}", "WARNING", {"vms": high_load_vms})
 
                         return 
 
@@ -179,10 +184,10 @@ class CerebroAgent(Agent):
                         await self.agent.guardar_metrica_servidor(nodo, cpu, ram, up)
                         print(f"💾 GUARDADO EN BD (Texto): {nodo}")
                     else:
-                        print(f"⚠️ Formato desconocido: {texto}")
+                        print(f"Formato desconocido: {texto}")
 
                 except Exception as e:
-                    print(f"❌ Error procesando: {e}")
+                    print(f"Error procesando: {e}")
 
     class ComportamientoWatchdog(PeriodicBehaviour):
         async def run(self):
@@ -237,19 +242,19 @@ class CerebroAgent(Agent):
                     
                     if resultado == "RESTARTED":
                         await self.agent.log_db(
-                            f"🚨 ALERTA: VM Crítica {vm.nombre} detectada APAGADA. 🚑 Protocolo de resurrección iniciado.", 
+                            f"ALERTA: VM Critica {vm.nombre} detectada APAGADA. Protocolo de resurreccion iniciado.", 
                             "ACTION", 
                             {"vm": vm.nombre, "node": nodo_nombre}
                         )
                     elif str(resultado).startswith("Error"):
-                         await self.agent.log_db(f"⚠️ Error verificando VM {vm.nombre}: {resultado}", "WARNING")
+                         await self.agent.log_db(f"Error verificando VM {vm.nombre}: {resultado}", "WARNING")
 
                 except Exception as e:
                     await self.agent.log_db(f"Error en Watchdog para {vm.nombre}: {e}", "WARNING")
 
     class ComportamientoPrediccion(PeriodicBehaviour):
         async def run(self):
-            print("🔮 CEREBRO: Iniciando ciclo de predicción SARIMA...")
+            print("CEREBRO: Iniciando ciclo de prediccion SARIMA...")
             try:
                 # 1. Predicciones de Servidores
                 # Usamos sync_to_async para operaciones de BD bloqueantes
@@ -269,14 +274,20 @@ class CerebroAgent(Agent):
                     await sync_to_async(train_and_predict_vm)(vm.vm_id)
 
                 await self.agent.log_db("Ciclo de predicción completado", "INFO")
-                print("✨ CEREBRO: Predicciones generadas exitosamente.")
+                print("CEREBRO: Predicciones generadas exitosamente.")
 
             except Exception as e:
-                print(f"❌ Error en ciclo de predicción: {e}")
+                print(f"Error en ciclo de prediccion: {e}")
                 await self.agent.log_db(f"Error en predicción: {e}", "WARNING")
 
     async def setup(self):
-        print("🔌 CEREBRO: Iniciando sistema de almacenamiento...")
+        print("CEREBRO: Iniciando sistema de almacenamiento...")
+        
+        # Configuración explícita de seguridad (Redundancia anti-fallos)
+        if hasattr(self, 'client') and self.client:
+             self.client.use_tls = False # Match Vigilante
+             self.client.use_ssl = False
+             self.client.plugin['feature_mechanisms'].unencrypted_plain = True
         
         # Comportamiento de Escucha (Mensajes XMPP)
         b = self.ComportamientoEscucha()

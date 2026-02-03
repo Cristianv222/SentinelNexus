@@ -9,57 +9,63 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ======================================================
-# 💉 OMNI-PARCHE DE SEGURIDAD (APAGADO TOTAL DE TLS) - V2
+# 💉 CONFIGURACIÓN PERMISIVA DE TLS (Permitir certificados auto-firmados)
 # ======================================================
 import sys
-import asyncio
 import slixmpp
-import slixmpp.xmlstream.xmlstream
-import slixmpp.features.feature_starttls
 
-print("💉 [RUNNER] INICIANDO PROTOCOLO DE APAGADO TLS (REDUX)...")
+print("[RUNNER] INICIANDO CONFIGURACION TLS PERMISIVA...")
 
-# 1. Parche al Constructor (Configuración base + AMPUTACIÓN)
+# Parcheamos para asegurar que no verifique certificados
 _original_init = slixmpp.ClientXMPP.__init__
-def constructor_parcheado(self, *args, **kwargs):
-    print("💉 [RUNNER] Constructor Ejecutado. Intentando eliminar TLS...")
+def constructor_permissive(self, *args, **kwargs):
     _original_init(self, *args, **kwargs)
     
-    # Configuración estándar para texto plano
+    # Configuración para aceptar certificados inválidos/autofirmados
+    self.use_tls = False  # <--- FORZADO OFF (PLAIN)
+    self.use_ssl = False # No usar SSL legado (puerto 5223)
+    self.check_certificate = False # <--- IMPORTANTE: No verificar cert
+    self.verify_ssl = False        # <--- IMPORTANTE
+    
+    # Asegurar que SASL PLAIN esté permitido incluso sin encriptación
+    try:
+        self.plugin['feature_mechanisms'].unencrypted_plain = True
+        self.plugin['feature_mechanisms'].config['unencrypted_plain'] = True
+        self.plugin['feature_mechanisms'].config['use_mech'] = 'PLAIN' 
+    except Exception:
+        pass
+    
+    # Asegurar que SASL PLAIN esté permitido
     self.plugin['feature_mechanisms'].unencrypted_plain = True
-    self.use_ssl = False
-    self.use_tls = False
-    self.force_starttls = False
-    self.disable_starttls = True
 
-    # 🛑 AMPUTACIÓN: Eliminar el plugin de STARTTLS si existe
-    # Esto evita que el cliente sepa siquiera cómo negociar TLS.
-    if 'feature_starttls' in self.plugin:
-        del self.plugin['feature_starttls']
-        print("💣 [RUNNER] Plugin 'feature_starttls' ELIMINADO de la instancia.")
-    else:
-        print("⚠️ [RUNNER] Plugin 'feature_starttls' no encontrado en instancia (¿Ya eliminado?).")
+slixmpp.ClientXMPP.__init__ = constructor_permissive
 
-slixmpp.ClientXMPP.__init__ = constructor_parcheado
+# 1.5 Parche a connect (Para evitar error de argumento 'host' inesperado y FORZAR IP)
+_original_connect = slixmpp.ClientXMPP.connect
+def connect_parcheado(self, *args, **kwargs):
+    # Limpieza de argumentos basura de Spade/Legacy
+    if 'host' in kwargs:
+        del kwargs['host']
+    if 'port' in kwargs:
+        del kwargs['port']
+        
+    # INYECCIÓN DE IP CORRECTA DE PROSODY
+    xmpp_host = os.getenv('XMPP_HOST')
+    if xmpp_host:
+        print(f"[PATCH] FORZANDO CONEXION A: {xmpp_host}:5222")
+        kwargs['address'] = (xmpp_host, 5222)
+        
+    return _original_connect(self, *args, **kwargs)
+slixmpp.ClientXMPP.connect = connect_parcheado
 
-# 2. Parche al Método start_tls (Redundancia)
-async def fake_start_tls(self):
-    print("🛡️ [GOD MODE] start_tls bloqueado.")
-    return True
-slixmpp.xmlstream.xmlstream.XMLStream.start_tls = fake_start_tls
-
-print("💉 [RUNNER] ESTRATEGIA DE AMPUTACIÓN ACTIVADA.")
+print("[RUNNER] MODO TEXTO PLANO ACTIVADO (TLS=OFF, PLAIN=ON).")
 sys.stdout.flush()
-
-# Flags Globales
-slixmpp.ClientXMPP.force_starttls = False
-slixmpp.ClientXMPP.disable_starttls = True
 # ======================================================
 
 from submodulos.agents.monitor import MonitorAgent
 
 async def main():
-    print("🕵️ INICIANDO AGENTES VIGILANTES...")
+    print("INICIANDO AGENTES VIGILANTES...")
     
     # Configuración XMPP Base
     xmpp_domain = os.getenv('XMPP_DOMAIN', 'sentinelnexus.local')
@@ -75,11 +81,10 @@ async def main():
         name = os.getenv(f'PROXMOX_NODE{i}_NAME', f'Node{i}')
 
         if host and user and password:
-            print(f"   ↳ Configurando Vigilante para: {name} ({host})...")
+            print(f"   Configurando Vigilante para: {name} ({host})...")
             
-            # Crear JID único para cada vigilante: vigilante_10.100.100.40@sentinel...
-            # Usamos la IP o el numero de nodo para hacerlo único
-            jid = f"vigilante_{host}@{xmpp_domain}"
+            # Usamos el usuario 'monitor' que ya existe
+            jid = f"monitor@{xmpp_domain}"
             
             agent = MonitorAgent(jid, xmpp_pass, host, user, password)
             
@@ -96,21 +101,26 @@ async def main():
             
             try:
                 await agent.start()
-                print(f"     ✅ Vigilante {i} activo y escaneando.")
+                print(f"     Vigilante {i} (monitor) activo y escaneando.")
             except Exception as e:
-                print(f"     ❌ Error al iniciar Vigilante {i}: {e}")
+                print(f"     Error al iniciar Vigilante {i}: {e}")
+            
+            
+            # SOLO INICIAMOS EL PRIMERO PORQUE 'monitor' ES UN SOLO USUARIO
+            # break  <-- COMENTADO PARA PROBAR TODOS LOS NODOS (Slixmpp usará resources aleatorios)
+            pass
 
     if not agents:
-        print("⚠️ NO SE ENCONTRARON NODOS PROXMOX EN .ENV")
+        print("NO SE ENCONTRARON NODOS PROXMOX EN .ENV")
         return
 
-    print(f"🚀 {len(agents)} Vigilantes operando. Presiona CTRL+C para detener.")
+    print(f"{len(agents)} Vigilantes operando. Presiona CTRL+C para detener.")
     
     try:
         while True:
             await asyncio.sleep(1)
     except KeyboardInterrupt:
-        print("🛑 Deteniendo Vigilantes...")
+        print("Deteniendo Vigilantes...")
         for a in agents:
             await a.stop()
 

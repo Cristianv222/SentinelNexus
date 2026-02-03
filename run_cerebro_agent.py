@@ -1,48 +1,70 @@
 
 import os
-import django
-import time
+import sys
 import asyncio
+import json
+import slixmpp
+import django
+from dotenv import load_dotenv
 
+load_dotenv()
 
-# 1. Configurar entorno Django (CRUCIAL para acceder a la BD)
+# Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sentinelnexus.settings')
 django.setup()
 
-# 2. Importar el Agente después de configurar Django
+print("[RUNNER] Applying Patch for Production...")
+
+_original_init = slixmpp.ClientXMPP.__init__
+def constructor_permissive(self, *args, **kwargs):
+    _original_init(self, *args, **kwargs)
+    self.use_tls = False
+    self.use_ssl = False
+    self.check_certificate = False
+    self.verify_ssl = False
+    try:
+        self.plugin['feature_mechanisms'].unencrypted_plain = True
+        self.plugin['feature_mechanisms'].config['unencrypted_plain'] = True
+        self.plugin['feature_mechanisms'].config['use_mech'] = 'PLAIN'
+        print("[RUNNER] PLAIN AUTH ENABLED in __init__")
+    except Exception:
+        pass
+
+slixmpp.ClientXMPP.__init__ = constructor_permissive
+
+_original_connect = slixmpp.ClientXMPP.connect
+def connect_parcheado(self, *args, **kwargs):
+    if 'host' in kwargs: del kwargs['host']
+    if 'port' in kwargs: del kwargs['port']
+    xmpp_host = os.getenv('XMPP_HOST')
+    if xmpp_host:
+        kwargs['address'] = (xmpp_host, 5222)
+    return _original_connect(self, *args, **kwargs)
+slixmpp.ClientXMPP.connect = connect_parcheado
+
 from submodulos.agents.cerebro import CerebroAgent
 
 async def main():
-    print("🧠 Inicializando CEREBRO SENTINEL...")
+    print("Starting CEREBRO (Service Mode)...")
     
-    # Credenciales XMPP (Desde variables de entorno o .env)
+    # Use KNOWN GOOD credentials
     jid = os.environ.get('XMPP_JID', "cerebro@sentinelnexus.local")
-    password = os.environ.get('XMPP_PASSWORD', "sentinel123")
+    password = os.getenv('XMPP_PASSWORD', "sentinel123")
     
+    print(f"Logging in as {jid}...")
     agent = CerebroAgent(jid, password)
-    
-    # FORZAR MODO NO-ENCRIPTADO (Para servidores internos sin SSL)
-    agent.use_tls = False
-    agent.use_ssl = False
-    agent.force_starttls = False
-    agent.disable_starttls = True
     
     try:
         await agent.start()
-        print("✅ Cerebro conectado y operando.")
-        print("👀 Watchdog vigilando VMs críticas cada 30s...")
-        print("📊 Esperando métricas de nodos...")
-        print("Presiona CTRL+C para detener.")
+        print("Cerebro Service Connected!")
         
-        # Mantener el script corriendo
         while True:
             await asyncio.sleep(1)
             
     except KeyboardInterrupt:
-        print("\n🛑 Deteniendo CEREBRO...")
         await agent.stop()
     except Exception as e:
-        print(f"\n❌ Error fatal: {e}")
+        print(f"FATAL ERROR: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
