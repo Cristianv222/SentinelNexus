@@ -17,26 +17,39 @@ try:
     import spade # <--- CORREGIDO (era spades)
     from spade.agent import Agent
 
-    # 1. Parchear make_security_layer para ELIMINAR PROACTIVAMENTE STARTTLS
+    # 1. Parchear make_security_layer para DESACTIVAR TLS REQUERIDO
     _original_make_security_layer = aioxmpp.make_security_layer
     
     def permissive_make_security_layer(password, no_verify=True):
-        print(f"[RUNNER] aioxmpp.make_security_layer INTERCEPTADO. Obteniendo capas originales...")
-        layers = _original_make_security_layer(password, no_verify=True)
-        print(f"[RUNNER] Capas originales: {layers}")
+        print(f"[RUNNER] aioxmpp.make_security_layer INTERCEPTADO. Obteniendo objeto original...")
+        security_layer = _original_make_security_layer(password, no_verify=True)
+        print(f"[RUNNER] Capa original: {security_layer}")
         
-        # Filtrar StartTLS
-        filtered_layers = []
-        for layer in layers:
-            name = str(layer)
-            # StartTLS factory suele tener 'StartTLS' en su repr o clase
-            if 'StartTLS' in name or 'tls' in name.lower():
-                print(f"[RUNNER] 🗑️ ELIMINANDO CAPA: {layer} (Causa: Detectado como TLS)")
-            else:
-                filtered_layers.append(layer)
-                
-        print(f"[RUNNER] Capas filtradas: {filtered_layers}")
-        return filtered_layers
+        # Intentar modificar el atributo tls_required
+        try:
+            # Opción A: Modificable
+            security_layer.tls_required = False
+            print("[RUNNER] ✅ tls_required SET TO FALSE (Modificado in-place)")
+        except AttributeError:
+            # Opción B: Inmutable (NamedTuple/dataclass frozen) - Reconstruir
+            print("[RUNNER] ⚠️ Objeto inmutable. Reconstruyendo SecurityLayer...")
+            try:
+                # Asumimos que podemos instanciarlo con los mismos argumentos
+                # Inspeccionamos que tipo es
+                LayerClass = type(security_layer)
+                # Copiamos atributos pero forzamos tls_required=False
+                # Nota: SecurityLayer suele ser un dataclass o similar en aioxmpp moderno
+                pass # TODO: Implementar si falla la opción A
+            except:
+                pass
+
+        # SI FALLA la modificación, intentaremos devolver un objeto modificado via replace si existe
+        if hasattr(security_layer, 'replace'): # Dataclasses a veces tienen replace? No standard.
+             pass
+             
+        # FALLBACK BRUTO: Asignar a la fuerza si es posible (ya lo hicimos arriba)
+        
+        return security_layer
     
     aioxmpp.make_security_layer = permissive_make_security_layer
     print("[RUNNER] aioxmpp.make_security_layer PARCHEADO.")
