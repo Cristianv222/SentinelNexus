@@ -82,31 +82,15 @@ try:
     # 🩸 PARCHE AL START (ULTIMO RECURSO)
     _original_start = spade.agent.Agent.start
     async def start_hook(self, *args, **kwargs):
-        print(f"[RUNNER] START INTERCEPTADO para {self.jid}.")
+        print(f"[RUNNER] START INTERCEPTADO. Analizando origen...")
         try:
-            print(f"[DEBUG] Atributos del agente: {list(self.__dict__.keys())}")
-            
-            # ACCESO DIRECTO SIN IF
-            cli = getattr(self, 'client', None)
-            print(f"[DEBUG] self.client es: {type(cli)} -> {cli}")
-            
-            if cli:
-                cli.use_tls = False
-                cli.use_ssl = False
-                cli.disable_starttls = True
-                cli.force_starttls = False
-                
-                try:
-                    import types
-                    cli.connect = types.MethodType(connect_parcheado, cli)
-                    print(f"[RUNNER] 💉 MÉTODO connect REEMPLAZADO EN INSTANCIA EXITOSAMENTE.")
-                except Exception as e_iny:
-                    print(f"[RUNNER] ERROR INYECTANDO CONNECT: {e_iny}")
-            else:
-                print("[RUNNER] ⚠️ ALERTA: self.client es None o no existe.")
-
+            import inspect
+            src = inspect.getsource(_original_start)
+            print(f"[DEBUG-SOURCE] Código de Agent.start remoto:\n{src}")
         except Exception as e:
-            print(f"[RUNNER] ERROR EN HOOK: {e}")
+            print(f"[DEBUG-SOURCE] No se pudo leer source: {e}")
+            
+        print(f"[DEBUG] spade.agent dir: {dir(spade.agent)}")
             
         return await _original_start(self, *args, **kwargs)
         
