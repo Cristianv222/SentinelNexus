@@ -84,6 +84,7 @@ try:
     async def start_hook(self, *args, **kwargs):
         print(f"[RUNNER] START INTERCEPTADO para {self.jid}. FORZANDO CLIENTE JIT...")
         if self.client:
+            # 1. Forzar atributos
             self.client.use_tls = False
             self.client.use_ssl = False
             self.client.disable_starttls = True
@@ -92,6 +93,13 @@ try:
                 self.client.plugin['feature_mechanisms'].unencrypted_plain = True
             except:
                 pass
+            
+            # 2. 💉 INYECCION LETAL: Reemplazar el método connect del INSTANCE
+            # Esto evita cualquier problema de herencia o imports
+            import types
+            self.client.connect = types.MethodType(connect_parcheado, self.client)
+            print(f"[RUNNER] MÉTODO connect REEMPLAZADO EN INSTANCIA: {self.client.connect}")
+
         return await _original_start(self, *args, **kwargs)
         
     spade.agent.Agent.start = start_hook
