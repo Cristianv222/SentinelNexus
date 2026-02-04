@@ -103,6 +103,13 @@ async def main():
 
             agents.append(agent)
             
+            # BRUTE FORCE PATCH ON CLIENT (Spade override)
+            if hasattr(agent, 'client') and agent.client:
+                print(f"[PATCH-VIGILANTE] Forzando settings en agent.client para {node_name}")
+                agent.client.use_tls = False
+                agent.client.use_ssl = False
+                agent.client.disable_starttls = True
+                
             try:
                 await agent.start()
                 print(f"     Vigilante {i} (monitor) activo y escaneando.")
