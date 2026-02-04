@@ -34,21 +34,33 @@ try:
             # Opción B: Inmutable (NamedTuple/dataclass frozen) - Reconstruir
             print("[RUNNER] ⚠️ Objeto inmutable. Reconstruyendo SecurityLayer...")
             try:
-                # Asumimos que podemos instanciarlo con los mismos argumentos
-                # Inspeccionamos que tipo es
+                # Intentamos invocar el constructor de la clase del objeto original
                 LayerClass = type(security_layer)
-                # Copiamos atributos pero forzamos tls_required=False
-                # Nota: SecurityLayer suele ser un dataclass o similar en aioxmpp moderno
-                pass # TODO: Implementar si falla la opción A
-            except:
-                pass
+                
+                # Extraemos los valores originales
+                ssl_factory = getattr(security_layer, 'ssl_context_factory', None)
+                cert_verifier = getattr(security_layer, 'certificate_verifier_factory', None)
+                sasl_prov = getattr(security_layer, 'sasl_providers', ())
+                
+                # Reconstruimos forzando tls_required=False
+                # Asumimos signature común: (ssl_context_factory, certificate_verifier_factory, tls_required, sasl_providers)
+                # Si falla, intentamos kwargs
+                try:
+                    new_layer = LayerClass(
+                        ssl_context_factory=ssl_factory,
+                        certificate_verifier_factory=cert_verifier,
+                        tls_required=False,
+                        sasl_providers=sasl_prov
+                    )
+                    security_layer = new_layer
+                    print(f"[RUNNER] ✅ SecurityLayer RECONSTRUIDO: {security_layer}")
+                except TypeError:
+                     # Intentar constructor posicinal si kwargs falla (poco probable en aioxmpp reciente)
+                     pass
 
-        # SI FALLA la modificación, intentaremos devolver un objeto modificado via replace si existe
-        if hasattr(security_layer, 'replace'): # Dataclasses a veces tienen replace? No standard.
-             pass
-             
-        # FALLBACK BRUTO: Asignar a la fuerza si es posible (ya lo hicimos arriba)
-        
+            except Exception as e_recon:
+                print(f"[RUNNER] ❌ Falló reconstrucción: {e_recon}")
+
         return security_layer
     
     aioxmpp.make_security_layer = permissive_make_security_layer
