@@ -80,18 +80,20 @@ try:
     
     _original_slix_init = slixmpp.ClientXMPP.__init__
     def permissive_slixmpp_init(self, *args, **kwargs):
-        # Desactivar TLS en argumentos
-        kwargs['use_tls'] = False
-        kwargs['use_ssl'] = False
-        kwargs['disable_starttls'] = True
-        kwargs['force_starttls'] = False
+        # ELIMINAR argumentos conflictivos de kwargs antes de llamar al original
+        kwargs.pop('use_tls', None)
+        kwargs.pop('use_ssl', None)
+        kwargs.pop('disable_starttls', None)
+        kwargs.pop('force_starttls', None)
         
+        # Llamar al original limpio
         _original_slix_init(self, *args, **kwargs)
         
-        # Override atributos post-init
+        # Override atributos post-init (FORZADO)
         self.use_tls = False
         self.force_starttls = False
         self.disable_starttls = True
+        self.verify_ssl = False
         logging.info("[RUNNER] SLIXMPP INIT PATCHED (TLS OFF)")
         
         # Intentar habilitar PLAIN auth en plugins
