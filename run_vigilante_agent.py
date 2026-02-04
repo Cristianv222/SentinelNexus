@@ -46,10 +46,12 @@ slixmpp.ClientXMPP.__init__ = constructor_permissive
 _original_connect = slixmpp.ClientXMPP.connect
 def connect_parcheado(self, *args, **kwargs):
     # Limpieza de argumentos basura de Spade/Legacy
-    if 'host' in kwargs:
-        del kwargs['host']
-    if 'port' in kwargs:
-        del kwargs['port']
+    if 'host' in kwargs: del kwargs['host']
+    if 'port' in kwargs: del kwargs['port']
+    
+    # 🩹 FORZAR PARAMETROS EN CONNECT (CRITICO PARA FIX TLS)
+    kwargs['use_ssl'] = False
+    kwargs['disable_starttls'] = True
         
     # INYECCIÓN DE IP CORRECTA DE PROSODY
     xmpp_host = os.getenv('XMPP_HOST')
