@@ -17,13 +17,26 @@ try:
     import spade # <--- CORREGIDO (era spades)
     from spade.agent import Agent
 
-    # 1. Parchear make_security_layer para debilitar seguridad TLS
+    # 1. Parchear make_security_layer para ELIMINAR PROACTIVAMENTE STARTTLS
     _original_make_security_layer = aioxmpp.make_security_layer
     
     def permissive_make_security_layer(password, no_verify=True):
-        print(f"[RUNNER] aioxmpp.make_security_layer INTERCEPTADO. Password: ***, no_verify={no_verify} -> FORZANDO True")
-        # Forzar no_verify=True
-        return _original_make_security_layer(password, no_verify=True)
+        print(f"[RUNNER] aioxmpp.make_security_layer INTERCEPTADO. Obteniendo capas originales...")
+        layers = _original_make_security_layer(password, no_verify=True)
+        print(f"[RUNNER] Capas originales: {layers}")
+        
+        # Filtrar StartTLS
+        filtered_layers = []
+        for layer in layers:
+            name = str(layer)
+            # StartTLS factory suele tener 'StartTLS' en su repr o clase
+            if 'StartTLS' in name or 'tls' in name.lower():
+                print(f"[RUNNER] 🗑️ ELIMINANDO CAPA: {layer} (Causa: Detectado como TLS)")
+            else:
+                filtered_layers.append(layer)
+                
+        print(f"[RUNNER] Capas filtradas: {filtered_layers}")
+        return filtered_layers
     
     aioxmpp.make_security_layer = permissive_make_security_layer
     print("[RUNNER] aioxmpp.make_security_layer PARCHEADO.")
