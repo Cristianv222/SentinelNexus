@@ -66,8 +66,9 @@ try:
     Agent.__init__ = agent_init_hook
     print("[RUNNER] spade.agent.Agent.__init__ PARCHEADO.")
 
-except ImportError:
-    print("[RUNNER] Advertencia: aioxmpp/spade no importado.")
+except ImportError as e:
+    print(f"[RUNNER] FATAL ERROR IMPORTING AIOXMPP/SPADE: {e}")
+    # No silenciamos el error, dejamos que siga para ver si explota más adelante
 except Exception as e:
     print(f"[RUNNER] Error patch: {e}")
 
