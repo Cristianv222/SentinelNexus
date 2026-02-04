@@ -1,134 +1,85 @@
-
-import sys
-print(f"DEBUG: STARTING EXECUTION. Python: {sys.executable}")
-import os
 import asyncio
-import time
+import os
+import sys
+import logging
 from dotenv import load_dotenv
 
-# Cargar variables de entorno
 # Cargar variables de entorno
 load_dotenv()
 
 # ======================================================
-# 💉 CONFIGURACIÓN PERMISIVA DE TLS (Permitir certificados auto-firmados)
+# 💉 PARCHE DE SEGURIDAD PARA AIOXMPP (SPADE 3.3.x)
 # ======================================================
-import sys
-import slixmpp
+print("[RUNNER] INICIANDO PARCHE DE SEGURIDAD PARA AIOXMPP...")
 
-print("[RUNNER] INICIANDO CONFIGURACION TLS PERMISIVA...")
-
-# Parcheamos para asegurar que no verifique certificados
-_original_init = slixmpp.ClientXMPP.__init__
-def constructor_permissive(self, *args, **kwargs):
-    # 🩹 FORZAR ARGS EN EL NACIMIENTO DEL CLIENTE (NUCLEAR OPTION)
-    kwargs['use_tls'] = False
-    kwargs['use_ssl'] = False
-    kwargs['disable_starttls'] = True
-    kwargs['force_starttls'] = False 
-
-    _original_init(self, *args, **kwargs)
-    
-    # 🩹 POST-INIT OVERRIDE (Doble seguridad)
-    self.force_starttls = False
-    self.disable_starttls = True
-    print(f"[RUNNER] CLIENTE INICIALIZADO. force_starttls={self.force_starttls}, disable_starttls={self.disable_starttls}, use_tls={self.use_tls}")
-    
-    # Configuración para aceptar certificados inválidos/autofirmados
-    self.use_tls = False  # <--- FORZADO OFF (PLAIN)
-    self.use_ssl = False # No usar SSL legado (puerto 5223)
-    self.check_certificate = False # <--- IMPORTANTE: No verificar cert
-    self.verify_ssl = False        # <--- IMPORTANTE
-    
-    # Asegurar que SASL PLAIN esté permitido incluso sin encriptación
-    try:
-        self.plugin['feature_mechanisms'].unencrypted_plain = True
-        self.plugin['feature_mechanisms'].config['unencrypted_plain'] = True
-        self.plugin['feature_mechanisms'].config['use_mech'] = 'PLAIN' 
-    except Exception:
-        pass
-    
-    # Asegurar que SASL PLAIN esté permitido
-    self.plugin['feature_mechanisms'].unencrypted_plain = True
-
-slixmpp.ClientXMPP.__init__ = constructor_permissive
-
-# 🩸 PARCHE AL JAQUE MATE: AGENT.__INIT__
-# Si no podemos cambiar el motor, cambiamos al conductor.
 try:
-    import spade.agent
-    _original_agent_init = spade.agent.Agent.__init__
-    
-    def agent_init_hook(self, *args, **kwargs):
-        _original_agent_init(self, *args, **kwargs)
-        # YA EXISTE self.client AQUI
-        print(f"[RUNNER] INTERCEPTADO AGENTE {self.jid}. FORZANDO CLIENTE...")
-        if hasattr(self, 'client') and self.client:
-            self.client.use_tls = False
-            self.client.use_ssl = False
-            self.client.disable_starttls = True
-            self.client.force_starttls = False
-            self.client.check_certificate = False
-            self.client.verify_ssl = False
-            try:
-                self.client.plugin['feature_mechanisms'].unencrypted_plain = True
-            except:
-                pass
-            print(f"[RUNNER] CLIENTE PARCHEADO EXITOSAMENTE: {self.client.jid}")
+    import aioxmpp
+    import spades
+    from spade.agent import Agent
 
-    spade.agent.Agent.__init__ = agent_init_hook
-    print("[RUNNER] spade.agent.Agent.__init__ INTERCEPTADO.")
+    # 1. Parchear make_security_layer para debilitar seguridad TLS
+    # Spade llama a esto internamente: aioxmpp.make_security_layer(password, no_verify=not verify_security)
+    # Nosotros interceptamos para asegurar que el resultado sea permisivo o PLAIN.
     
-    # 🩸 PARCHE AL START (ULTIMO RECURSO)
-    _original_start = spade.agent.Agent.start
-    async def start_hook(self, *args, **kwargs):
-        print(f"[RUNNER] START INTERCEPTADO. Spade Version: {spade.__version__}")
-        try:
-            import inspect
-            # Intentar obtener _async_start
-            async_start_method = getattr(self, '_async_start', None)
-            if async_start_method:
-                 src = inspect.getsource(async_start_method)
-                 print(f"[DEBUG-SOURCE] Código de _async_start remoto:\n{src}")
-            else:
-                 print("[DEBUG-SOURCE] No se encontró _async_start")
-                 
-        except Exception as e:
-            print(f"[DEBUG-SOURCE] No se pudo leer source: {e}")
-            
-        return await _original_start(self, *args, **kwargs)
+    _original_make_security_layer = aioxmpp.make_security_layer
+    
+    def permissive_make_security_layer(password, no_verify=True):
+        print(f"[RUNNER] aioxmpp.make_security_layer INTERCEPTADO. Password: ***, no_verify={no_verify} -> FORZANDO True")
+        # Forzamos no_verify=True para ignorar certificados self-signed o malos
+        return _original_make_security_layer(password, no_verify=True)
+    
+    aioxmpp.make_security_layer = permissive_make_security_layer
+    print("[RUNNER] aioxmpp.make_security_layer PARCHEADO.")
+
+    # 2. Modificar el __init__ del Agente para asegurar verify_security=False por defecto
+    _original_agent_init = Agent.__init__
+    def agent_init_hook(self, *args, **kwargs):
+        # Asegurar que verify_security sea False en los argumentos si estamos inicializando
+        # Spade 3.3 __init__(self, jid, password, verify_security=False)
+        # Si kwargs tiene verify_security, forzar False
+        if 'verify_security' in kwargs:
+            kwargs['verify_security'] = False
         
-    spade.agent.Agent.start = start_hook
-    print("[RUNNER] spade.agent.Agent.start INTERCEPTADO.")
+        _original_agent_init(self, *args, **kwargs)
+        
+        # Refuerzo post-init
+        self.verify_security = False
+        print(f"[RUNNER] Agente {self.jid} inicializado con verify_security=False (Force).")
+
+    Agent.__init__ = agent_init_hook
+    print("[RUNNER] spade.agent.Agent.__init__ PARCHEADO.")
 
 except ImportError:
-    print("[RUNNER] FATAL: No se pudo importar spade.agent.")
+    print("[RUNNER] Advertencia: aioxmpp o spade no importado correctamente al inicio. Intentando continuar...")
+except Exception as e:
+    print(f"[RUNNER] Error aplicando parches AIOXMPP: {e}")
 
-# 1.5 Parche a connect (Para evitar error de argumento 'host' inesperado y FORZAR IP)
-_original_connect = slixmpp.ClientXMPP.connect
-def connect_parcheado(self, *args, **kwargs):
-    print(f"[RUNNER] CONNECT INTERCEPTADO. Args: {kwargs}")
-    # Limpieza de argumentos basura de Spade/Legacy
-    if 'host' in kwargs: del kwargs['host']
-    if 'port' in kwargs: del kwargs['port']
+# ======================================================
+# INTENTO DE PARCHE LEGACY (SLIXMPP) POR SI ACASO
+# ======================================================
+try:
+    import slixmpp
+    # Parche simple para Slixmpp por si el servidor tuviera una mezcla rara
+    def permissive_slixmpp_init(self, *args, **kwargs):
+        kwargs['use_tls'] = False
+        kwargs['use_ssl'] = False
+        kwargs['disable_starttls'] = True
+        kwargs['force_starttls'] = False
+        if hasattr(slixmpp.ClientXMPP, '_original_init_backup'):
+            slixmpp.ClientXMPP._original_init_backup(self, *args, **kwargs)
+        else:
+             # Fallback peligroso si no guardamos el original, pero asumimos que no se llamará si es aioxmpp
+             pass
+        self.use_tls = False
+        self.force_starttls = False
     
-    # 🩹 FORZAR PARAMETROS EN CONNECT (CRITICO PARA FIX TLS)
-    kwargs['use_ssl'] = False
-    kwargs['disable_starttls'] = True
-    kwargs['force_starttls'] = False
-        
-    # INYECCIÓN DE IP CORRECTA DE PROSODY
-    xmpp_host = os.getenv('XMPP_HOST')
-    if xmpp_host:
-        print(f"[PATCH] FORZANDO CONEXION A: {xmpp_host}:5222")
-        kwargs['address'] = (xmpp_host, 5222)
-        
-    return _original_connect(self, *args, **kwargs)
-slixmpp.ClientXMPP.connect = connect_parcheado
-print(f"[RUNNER] slixmpp.ClientXMPP.connect INTERCEPTADO: {slixmpp.ClientXMPP.connect}")
+    if hasattr(slixmpp, 'ClientXMPP'):
+         slixmpp.ClientXMPP._original_init_backup = slixmpp.ClientXMPP.__init__
+         slixmpp.ClientXMPP.__init__ = permissive_slixmpp_init
+         print("[RUNNER] Slixmpp init parcheado (Legacy Fallback).")
+except:
+    pass
 
-print("[RUNNER] MODO TEXTO PLANO ACTIVADO (TLS=OFF, PLAIN=ON).")
-sys.stdout.flush()
 # ======================================================
 
 from submodulos.agents.monitor import MonitorAgent
@@ -152,47 +103,44 @@ async def main():
         if host and user and password:
             print(f"   Configurando Vigilante para: {name} ({host})...")
             
-            # Usamos el usuario 'monitor' que ya existe
-            jid = f"monitor@{xmpp_domain}"
+            agent_jid = f"monitor@{xmpp_domain}"
             
-            agent = MonitorAgent(jid, xmpp_pass, host, user, password)
+            agent = MonitorAgent(agent_jid, xmpp_pass, host, user, password)
             
-            # --- PARCHE DE SEGURIDAD TLS (Igual que en Cerebro) ---
-            # --- PARCHE DE SEGURIDAD TLS (Acceso Directo al Agente) ---
-            agent.use_tls = False
-            agent.use_ssl = False
-            agent.force_starttls = False
-            agent.disable_starttls = True
-            # ------------------------------------------------------
-            # ------------------------------------------------------
-
+            # REFUERZO FINAL
+            agent.verify_security = False 
+            
             agents.append(agent)
             
-            # BRUTE FORCE PATCH ON CLIENT (Removed - handled in constructor)
             try:
+                print(f"     Iniciando agente {name}...")
                 await agent.start()
-                print(f"     Vigilante {i} (monitor) activo y escaneando.")
+                print(f"     Vigilante {i} ({name}) activo y escaneando.")
             except Exception as e:
                 print(f"     Error al iniciar Vigilante {i}: {e}")
+                # Imprimir traceback si es posible para debug
+                import traceback
+                traceback.print_exc()
             
-            
-            # SOLO INICIAMOS EL PRIMERO PORQUE 'monitor' ES UN SOLO USUARIO
-            # break  <-- COMENTADO PARA PROBAR TODOS LOS NODOS (Slixmpp usará resources aleatorios)
-            pass
-
     if not agents:
         print("NO SE ENCONTRARON NODOS PROXMOX EN .ENV")
         return
 
     print(f"{len(agents)} Vigilantes operando. Presiona CTRL+C para detener.")
     
-    try:
-        while True:
+    while True:
+        try:
             await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        print("Deteniendo Vigilantes...")
-        for a in agents:
-            await a.stop()
+        except KeyboardInterrupt:
+            break
+            
+    # Parar agentes al salir
+    for agent in agents:
+        await agent.stop()
+    print("Agentes detenidos.")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Detenido por usuario.")
