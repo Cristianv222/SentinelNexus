@@ -78,6 +78,24 @@ try:
 
     spade.agent.Agent.__init__ = agent_init_hook
     print("[RUNNER] spade.agent.Agent.__init__ INTERCEPTADO.")
+    
+    # 🩸 PARCHE AL START (ULTIMO RECURSO)
+    _original_start = spade.agent.Agent.start
+    async def start_hook(self, *args, **kwargs):
+        print(f"[RUNNER] START INTERCEPTADO para {self.jid}. FORZANDO CLIENTE JIT...")
+        if self.client:
+            self.client.use_tls = False
+            self.client.use_ssl = False
+            self.client.disable_starttls = True
+            self.client.force_starttls = False
+            try:
+                self.client.plugin['feature_mechanisms'].unencrypted_plain = True
+            except:
+                pass
+        return await _original_start(self, *args, **kwargs)
+        
+    spade.agent.Agent.start = start_hook
+    print("[RUNNER] spade.agent.Agent.start INTERCEPTADO.")
 
 except ImportError:
     print("[RUNNER] FATAL: No se pudo importar spade.agent.")
