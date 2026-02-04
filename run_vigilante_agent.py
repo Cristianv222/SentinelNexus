@@ -82,24 +82,32 @@ try:
     # 🩸 PARCHE AL START (ULTIMO RECURSO)
     _original_start = spade.agent.Agent.start
     async def start_hook(self, *args, **kwargs):
-        print(f"[RUNNER] START INTERCEPTADO para {self.jid}. FORZANDO CLIENTE JIT...")
-        if self.client:
-            # 1. Forzar atributos
-            self.client.use_tls = False
-            self.client.use_ssl = False
-            self.client.disable_starttls = True
-            self.client.force_starttls = False
-            try:
-                self.client.plugin['feature_mechanisms'].unencrypted_plain = True
-            except:
-                pass
+        print(f"[RUNNER] START INTERCEPTADO para {self.jid}.")
+        try:
+            print(f"[DEBUG] Atributos del agente: {list(self.__dict__.keys())}")
             
-            # 2. 💉 INYECCION LETAL: Reemplazar el método connect del INSTANCE
-            # Esto evita cualquier problema de herencia o imports
-            import types
-            self.client.connect = types.MethodType(connect_parcheado, self.client)
-            print(f"[RUNNER] MÉTODO connect REEMPLAZADO EN INSTANCIA: {self.client.connect}")
+            # ACCESO DIRECTO SIN IF
+            cli = getattr(self, 'client', None)
+            print(f"[DEBUG] self.client es: {type(cli)} -> {cli}")
+            
+            if cli:
+                cli.use_tls = False
+                cli.use_ssl = False
+                cli.disable_starttls = True
+                cli.force_starttls = False
+                
+                try:
+                    import types
+                    cli.connect = types.MethodType(connect_parcheado, cli)
+                    print(f"[RUNNER] 💉 MÉTODO connect REEMPLAZADO EN INSTANCIA EXITOSAMENTE.")
+                except Exception as e_iny:
+                    print(f"[RUNNER] ERROR INYECTANDO CONNECT: {e_iny}")
+            else:
+                print("[RUNNER] ⚠️ ALERTA: self.client es None o no existe.")
 
+        except Exception as e:
+            print(f"[RUNNER] ERROR EN HOOK: {e}")
+            
         return await _original_start(self, *args, **kwargs)
         
     spade.agent.Agent.start = start_hook
