@@ -108,12 +108,7 @@ async def main():
 
             agents.append(agent)
             
-            # BRUTE FORCE PATCH ON CLIENT (Spade override)
-            # BRUTE FORCE PATCH ON CLIENT (Spade override)
-            try:
-                print(f"[PATCH-VIGILANTE] Agent Attrs: {list(agent.__dict__.keys())}")
-                
-                # ------------------------------------------------------
+            # BRUTE FORCE PATCH ON CLIENT (Removed - handled in constructor)
             try:
                 await agent.start()
                 print(f"     Vigilante {i} (monitor) activo y escaneando.")
