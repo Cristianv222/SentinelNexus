@@ -68,9 +68,46 @@ try:
 
 except ImportError as e:
     print(f"[RUNNER] FATAL ERROR IMPORTING AIOXMPP/SPADE: {e}")
-    # No silenciamos el error, dejamos que siga para ver si explota más adelante
 except Exception as e:
     print(f"[RUNNER] Error patch: {e}")
+
+# ======================================================
+# 💉 PARCHE LEGACY (SLIXMPP) - PLAN B
+# ======================================================
+print("[RUNNER] APLICANDO PARCHE LEGACY (SLIXMPP)...")
+try:
+    import slixmpp
+    
+    _original_slix_init = slixmpp.ClientXMPP.__init__
+    def permissive_slixmpp_init(self, *args, **kwargs):
+        # Desactivar TLS en argumentos
+        kwargs['use_tls'] = False
+        kwargs['use_ssl'] = False
+        kwargs['disable_starttls'] = True
+        kwargs['force_starttls'] = False
+        
+        _original_slix_init(self, *args, **kwargs)
+        
+        # Override atributos post-init
+        self.use_tls = False
+        self.force_starttls = False
+        self.disable_starttls = True
+        logging.info("[RUNNER] SLIXMPP INIT PATCHED (TLS OFF)")
+        
+        # Intentar habilitar PLAIN auth en plugins
+        try:
+             if hasattr(self, 'plugin'):
+                self.plugin['feature_mechanisms'].unencrypted_plain = True
+        except:
+            pass
+
+    slixmpp.ClientXMPP.__init__ = permissive_slixmpp_init
+    print("[RUNNER] slixmpp.ClientXMPP.__init__ PARCHEADO.")
+
+except ImportError:
+    print("[RUNNER] slixmpp no encontrado (OK si se usa aioxmpp).")
+
+# ======================================================
 
 # ======================================================
 
