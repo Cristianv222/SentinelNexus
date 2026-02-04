@@ -133,10 +133,19 @@ class MonitorAgent(Agent):
         print(f"MONITOR INICIADO PARA: {self.proxmox_ip}")
         
         # Configuración explícita de seguridad para este agente
+        # Configuración explícita de seguridad (Solo para Slixmpp legacy)
         if hasattr(self, 'client') and self.client:
-             self.client.use_tls = False
-             self.client.use_ssl = False
-             self.client.plugin['feature_mechanisms'].unencrypted_plain = True
+             try:
+                 # Intentamos configurar modo legacy solo si existe el atributo (Slixmpp)
+                 if hasattr(self.client, 'use_tls'):
+                     self.client.use_tls = False
+                     self.client.use_ssl = False
+                 
+                 # Esta línea rompe aioxmpp porque no tiene .plugin
+                 if hasattr(self.client, 'plugin'):
+                     self.client.plugin['feature_mechanisms'].unencrypted_plain = True
+             except:
+                 pass
 
         b = self.ComportamientoVigilancia()
         self.add_behaviour(b)
