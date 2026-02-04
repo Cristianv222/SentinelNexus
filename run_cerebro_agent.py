@@ -1,9 +1,8 @@
-
 import os
 import sys
 import asyncio
 import json
-import slixmpp
+import logging
 import django
 from dotenv import load_dotenv
 
@@ -13,39 +12,66 @@ load_dotenv()
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sentinelnexus.settings')
 django.setup()
 
-print("[RUNNER] Applying Patch for Production...")
+# ======================================================
+# 💉 PARCHE DE SEGURIDAD PARA AIOXMPP (Igual que Vigilante)
+# ======================================================
+print("[RUNNER] INICIANDO PARCHE DE SEGURIDAD PARA CEREBRO (AIOXMPP)...")
 
-_original_init = slixmpp.ClientXMPP.__init__
-def constructor_permissive(self, *args, **kwargs):
-    _original_init(self, *args, **kwargs)
-    self.use_tls = False
-    self.use_ssl = False
-    self.check_certificate = False
-    self.verify_ssl = False
-    try:
-        self.plugin['feature_mechanisms'].unencrypted_plain = True
-        self.plugin['feature_mechanisms'].config['unencrypted_plain'] = True
-        self.plugin['feature_mechanisms'].config['use_mech'] = 'PLAIN'
-        print("[RUNNER] PLAIN AUTH ENABLED in __init__")
-    except Exception:
-        pass
+try:
+    import aioxmpp
+    import spade
+    from spade.agent import Agent
 
-slixmpp.ClientXMPP.__init__ = constructor_permissive
-
-_original_connect = slixmpp.ClientXMPP.connect
-def connect_parcheado(self, *args, **kwargs):
-    if 'host' in kwargs: del kwargs['host']
-    if 'port' in kwargs: del kwargs['port']
+    # 1. Parchear make_security_layer para DESACTIVAR TLS REQUERIDO
+    _original_make_security_layer = aioxmpp.make_security_layer
     
-    # 🩹 FORZAR PARAMETROS EN CONNECT
-    kwargs['use_ssl'] = False
-    kwargs['disable_starttls'] = True
+    def permissive_make_security_layer(password, no_verify=True):
+        security_layer = _original_make_security_layer(password, no_verify=True)
+        
+        # Intentar modificar el atributo tls_required
+        try:
+            # Opción A: Modificable
+            security_layer.tls_required = False
+        except AttributeError:
+            # Opción B: Inmutable - Reconstruir
+            try:
+                LayerClass = type(security_layer)
+                ssl_factory = getattr(security_layer, 'ssl_context_factory', None)
+                cert_verifier = getattr(security_layer, 'certificate_verifier_factory', None)
+                sasl_prov = getattr(security_layer, 'sasl_providers', ())
+                
+                new_layer = LayerClass(
+                    ssl_context_factory=ssl_factory,
+                    certificate_verifier_factory=cert_verifier,
+                    tls_required=False,
+                    sasl_providers=sasl_prov
+                )
+                security_layer = new_layer
+            except Exception as e_recon:
+                print(f"[RUNNER] ❌ Falló reconstrucción: {e_recon}")
+
+        return security_layer
     
-    xmpp_host = os.getenv('XMPP_HOST')
-    if xmpp_host:
-        kwargs['address'] = (xmpp_host, 5222)
-    return _original_connect(self, *args, **kwargs)
-slixmpp.ClientXMPP.connect = connect_parcheado
+    aioxmpp.make_security_layer = permissive_make_security_layer
+    print("[RUNNER] aioxmpp.make_security_layer PARCHEADO.")
+
+    # 2. Modificar el __init__ del Agente
+    _original_agent_init = Agent.__init__
+    def agent_init_hook(self, *args, **kwargs):
+        if 'verify_security' in kwargs:
+            kwargs['verify_security'] = False
+        _original_agent_init(self, *args, **kwargs)
+        self.verify_security = False
+
+    Agent.__init__ = agent_init_hook
+    print("[RUNNER] spade.agent.Agent.__init__ PARCHEADO.")
+
+except ImportError:
+    print("[RUNNER] Advertencia: aioxmpp/spade no importado.")
+except Exception as e:
+    print(f"[RUNNER] Error patch: {e}")
+
+# ======================================================
 
 from submodulos.agents.cerebro import CerebroAgent
 
@@ -58,11 +84,13 @@ async def main():
     
     print(f"Logging in as {jid}...")
     agent = CerebroAgent(jid, password)
+    agent.verify_security = False
     
     try:
         await agent.start()
-        print("Cerebro Service Connected!")
+        print("Cerebro Service Connected and WAITING for messages...")
         
+        # Mantener vivo
         while True:
             await asyncio.sleep(1)
             
