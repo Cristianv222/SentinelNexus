@@ -21,6 +21,11 @@ print("[RUNNER] INICIANDO CONFIGURACION TLS PERMISIVA...")
 # Parcheamos para asegurar que no verifique certificados
 _original_init = slixmpp.ClientXMPP.__init__
 def constructor_permissive(self, *args, **kwargs):
+    # 🩹 FORZAR ARGS EN EL NACIMIENTO DEL CLIENTE (NUCLEAR OPTION)
+    kwargs['use_tls'] = False
+    kwargs['use_ssl'] = False
+    kwargs['disable_starttls'] = True
+
     _original_init(self, *args, **kwargs)
     
     # Configuración para aceptar certificados inválidos/autofirmados
@@ -108,27 +113,7 @@ async def main():
             try:
                 print(f"[PATCH-VIGILANTE] Agent Attrs: {list(agent.__dict__.keys())}")
                 
-                # 1. Force attributes on AGENT (seen in logs)
-                agent.use_tls = False
-                agent.use_ssl = False
-                agent.disable_starttls = True
-                agent.verify_security = False
-                
-                # 2. Force attributes on CLIENT (if exists)
-                if hasattr(agent, 'client'):
-                    print(f"[PATCH-VIGILANTE] Intentando patch en agent.client ({type(agent.client)})")
-                    try:
-                        agent.client.use_tls = False
-                        agent.client.use_ssl = False
-                        agent.client.disable_starttls = True
-                        agent.client.plugin['feature_mechanisms'].unencrypted_plain = True
-                        print("[PATCH-VIGILANTE] EXITOSO EN agent.client")
-                    except Exception as e_client:
-                        print(f"[PATCH-VIGILANTE] Error en client: {e_client}")
-                        
-            except Exception as e:
-                print(f"[PATCH-VIGILANTE] ERROR APLICANDO PARCHE: {e}")
-                
+                # ------------------------------------------------------
             try:
                 await agent.start()
                 print(f"     Vigilante {i} (monitor) activo y escaneando.")
