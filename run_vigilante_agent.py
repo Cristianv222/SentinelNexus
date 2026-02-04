@@ -53,16 +53,34 @@ def constructor_permissive(self, *args, **kwargs):
 
 slixmpp.ClientXMPP.__init__ = constructor_permissive
 
-# 🩸 PARCHE DIRECTO A SPADE (Por si herencia falla)
+# 🩸 PARCHE AL JAQUE MATE: AGENT.__INIT__
+# Si no podemos cambiar el motor, cambiamos al conductor.
 try:
-    from spade.agent import SpadeXMPP
-    SpadeXMPP.__init__ = constructor_permissive
-    print("[RUNNER] SpadeXMPP.init parcheado directamente.")
-except ImportError:
-    print("[RUNNER] No se pudo parchear SpadeXMPP directamente (ImportError).")
+    import spade.agent
+    _original_agent_init = spade.agent.Agent.__init__
+    
+    def agent_init_hook(self, *args, **kwargs):
+        _original_agent_init(self, *args, **kwargs)
+        # YA EXISTE self.client AQUI
+        print(f"[RUNNER] INTERCEPTADO AGENTE {self.jid}. FORZANDO CLIENTE...")
+        if hasattr(self, 'client') and self.client:
+            self.client.use_tls = False
+            self.client.use_ssl = False
+            self.client.disable_starttls = True
+            self.client.force_starttls = False
+            self.client.check_certificate = False
+            self.client.verify_ssl = False
+            try:
+                self.client.plugin['feature_mechanisms'].unencrypted_plain = True
+            except:
+                pass
+            print(f"[RUNNER] CLIENTE PARCHEADO EXITOSAMENTE: {self.client.jid}")
 
-# VERIFICACIÓN
-print(f"[RUNNER] Verificando patch: slixmpp.ClientXMPP.__init__ es {slixmpp.ClientXMPP.__init__}")
+    spade.agent.Agent.__init__ = agent_init_hook
+    print("[RUNNER] spade.agent.Agent.__init__ INTERCEPTADO.")
+
+except ImportError:
+    print("[RUNNER] FATAL: No se pudo importar spade.agent.")
 
 # 1.5 Parche a connect (Para evitar error de argumento 'host' inesperado y FORZAR IP)
 _original_connect = slixmpp.ClientXMPP.connect
