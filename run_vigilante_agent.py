@@ -53,6 +53,17 @@ def constructor_permissive(self, *args, **kwargs):
 
 slixmpp.ClientXMPP.__init__ = constructor_permissive
 
+# 🩸 PARCHE DIRECTO A SPADE (Por si herencia falla)
+try:
+    from spade.agent import SpadeXMPP
+    SpadeXMPP.__init__ = constructor_permissive
+    print("[RUNNER] SpadeXMPP.init parcheado directamente.")
+except ImportError:
+    print("[RUNNER] No se pudo parchear SpadeXMPP directamente (ImportError).")
+
+# VERIFICACIÓN
+print(f"[RUNNER] Verificando patch: slixmpp.ClientXMPP.__init__ es {slixmpp.ClientXMPP.__init__}")
+
 # 1.5 Parche a connect (Para evitar error de argumento 'host' inesperado y FORZAR IP)
 _original_connect = slixmpp.ClientXMPP.connect
 def connect_parcheado(self, *args, **kwargs):
