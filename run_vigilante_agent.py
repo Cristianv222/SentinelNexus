@@ -103,6 +103,7 @@ except ImportError:
 # 1.5 Parche a connect (Para evitar error de argumento 'host' inesperado y FORZAR IP)
 _original_connect = slixmpp.ClientXMPP.connect
 def connect_parcheado(self, *args, **kwargs):
+    print(f"[RUNNER] CONNECT INTERCEPTADO. Args: {kwargs}")
     # Limpieza de argumentos basura de Spade/Legacy
     if 'host' in kwargs: del kwargs['host']
     if 'port' in kwargs: del kwargs['port']
@@ -110,6 +111,7 @@ def connect_parcheado(self, *args, **kwargs):
     # 🩹 FORZAR PARAMETROS EN CONNECT (CRITICO PARA FIX TLS)
     kwargs['use_ssl'] = False
     kwargs['disable_starttls'] = True
+    kwargs['force_starttls'] = False
         
     # INYECCIÓN DE IP CORRECTA DE PROSODY
     xmpp_host = os.getenv('XMPP_HOST')
@@ -119,6 +121,7 @@ def connect_parcheado(self, *args, **kwargs):
         
     return _original_connect(self, *args, **kwargs)
 slixmpp.ClientXMPP.connect = connect_parcheado
+print(f"[RUNNER] slixmpp.ClientXMPP.connect INTERCEPTADO: {slixmpp.ClientXMPP.connect}")
 
 print("[RUNNER] MODO TEXTO PLANO ACTIVADO (TLS=OFF, PLAIN=ON).")
 sys.stdout.flush()
