@@ -104,11 +104,18 @@ async def main():
             agents.append(agent)
             
             # BRUTE FORCE PATCH ON CLIENT (Spade override)
-            if hasattr(agent, 'client') and agent.client:
-                print(f"[PATCH-VIGILANTE] Forzando settings en agent.client para {node_name}")
-                agent.client.use_tls = False
-                agent.client.use_ssl = False
-                agent.client.disable_starttls = True
+            # BRUTE FORCE PATCH ON CLIENT (Spade override)
+            try:
+                print(f"[PATCH-VIGILANTE] Agent Attrs: {list(agent.__dict__.keys())}")
+                if hasattr(agent, 'client') and agent.client:
+                    print(f"[PATCH-VIGILANTE] Forzando settings en agent.client para {node_name}")
+                    # Force all known variations
+                    agent.client.use_tls = False
+                    agent.client.use_ssl = False
+                    agent.client.disable_starttls = True
+                    agent.client.plugin['feature_mechanisms'].unencrypted_plain = True
+            except Exception as e:
+                print(f"[PATCH-VIGILANTE] ERROR APLICANDO PARCHE: {e}")
                 
             try:
                 await agent.start()
