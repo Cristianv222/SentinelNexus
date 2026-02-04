@@ -49,6 +49,8 @@
             background: linear-gradient(135deg, var(--primary-dark) 0%, var(--secondary-dark) 100%);
             border-bottom: 2px solid var(--accent-blue);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            -webkit-backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             position: sticky;
             top: 0;
@@ -122,6 +124,7 @@
             border: 1px solid var(--border-color);
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             margin-top: 8px;
         }
@@ -344,6 +347,12 @@
                         <a class="nav-link" href="{% url 'agent_dashboard' %}">
                             <i class="fas fa-robot me-2"></i>
                             Agentes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'predictions_dashboard' %}">
+                            <i class="fas fa-brain me-2"></i>
+                            Predicciones
                         </a>
                     </li>
                 </ul>

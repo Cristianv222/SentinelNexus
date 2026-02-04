@@ -6,7 +6,7 @@ After=network.target
 # User running the application (Change 'ubuntu' if needed)
 User=root
 WorkingDirectory=/home/django_user/apps/sentinel_nexus
-ExecStart=/home/django_user/apps/sentinel_env/bin/python run_cerebro_agent.py
+ExecStart=/home/django_user/apps/sentinel_nexus/venv/bin/python run_cerebro_agent.py
 Restart=always
 RestartSec=10
 

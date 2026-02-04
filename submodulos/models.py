@@ -54,8 +54,6 @@ class ProxmoxServer(models.Model):
     storage_total_bytes = models.BigIntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
-    
-
     def __str__(self):
         return self.name
 
@@ -179,8 +177,11 @@ class MaquinaVirtual(models.Model):
     vmid = models.IntegerField()  # ID dentro de Proxmox
     vm_type = models.CharField(max_length=10, choices=VM_TYPE_CHOICES, default='qemu')
     estado = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unknown')
+    
+    # Campo fusionado: is_monitored estaba en HEAD, is_critical en origin/main
     is_monitored = models.BooleanField(default=True)
     is_critical = models.BooleanField(default=False, verbose_name="Es Crítica (Watchdog)")
+    
     last_checked = models.DateTimeField(null=True, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -386,115 +387,8 @@ class Server(models.Model):
     password = models.CharField(max_length=100)
     active = models.BooleanField(default=True)
     
-    # Nuevo campo para relacionar con ProxmoxServer
-    #proxmox_server = models.ForeignKey(ProxmoxServer, on_delete=models.SET_NULL, null=True, blank=True, related_name='legacy_servers')
-    
     def __str__(self):
         return self.name
-    
-    #def save(self, *args, **kwargs):
-     #   """Asegura que exista el servidor Proxmox asociado"""
-      #  super().save(*args, **kwargs)
-       # if not self.proxmox_server and self.active:
-        #    # Crear automáticamente el servidor Proxmox si no existe
-         #   proxmox_server, created = ProxmoxServer.objects.get_or_create(
-          #      name=self.name,
-           #     defaults={
-            #        'hostname': self.host,
-             #       'username': self.username,
-              #      'password': self.password,
-               #     'is_active': self.active
-                #}
-            #)
-            #if created or proxmox_server.hostname != self.host:
-             #   proxmox_server.hostname = self.host
-              #  proxmox_server.username = self.username
-               # proxmox_server.password = self.password
-                #proxmox_server.is_active = self.active
-                #proxmox_server.save()
-            
-            #self.proxmox_server = proxmox_server
-            # Guardar de nuevo sin llamar a este método para evitar recursividad
-            #super().save(update_fields=['proxmox_server'])
-
-# Modelo para métricas de servidores Proxmox
-# ServerMetric (old definition removed to resolve duplicate registration warning)
-# The active definition is at the end of this file.
-
-
-# Modelo para métricas locales
-class LocalMetric(models.Model):
-    timestamp = models.DateTimeField(auto_now_add=True)
-    cpu_usage = models.FloatField()
-    memory_usage = models.FloatField()
-    disk_usage = models.FloatField()
-    
-    class Meta:
-        ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['timestamp']),
-        ]
-    
-    def __str__(self):
-        return f"Local Metrics - {self.timestamp}"
-    
-class ServerMetrics(models.Model):
-    """Métricas históricas de servidores Proxmox"""
-    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='server_metrics', null=True, blank=True)
-    timestamp = models.DateTimeField(default=timezone.now)
-    cpu_usage = models.FloatField(default=0.0)  # Porcentaje
-    memory_usage = models.FloatField(default=0.0)  # Porcentaje
-    memory_total = models.BigIntegerField(default=0)  # Bytes
-    memory_used = models.BigIntegerField(default=0)  # Bytes
-    disk_usage = models.FloatField(default=0.0)  # Porcentaje
-    disk_total = models.BigIntegerField(default=0)  # Bytes
-    disk_used = models.BigIntegerField(default=0)  # Bytes
-    network_in = models.BigIntegerField(default=0)  # Bytes
-    network_out = models.BigIntegerField(default=0)  # Bytes
-    uptime = models.BigIntegerField(default=0)  # Segundos
-    load_average = models.FloatField(default=0.0)
-    status = models.CharField(max_length=20, default='online')
-    
-    class Meta:
-        ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['server', '-timestamp']),
-            models.Index(fields=['-timestamp']),
-        ]
-        verbose_name = 'Métrica de Servidor'
-        verbose_name_plural = 'Métricas de Servidores'
-
-    def __str__(self):
-        return f"{self.server.name} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
-    
-
-class VMMetrics(models.Model):
-    """Métricas históricas de Máquinas Virtuales"""
-    vm = models.ForeignKey(MaquinaVirtual, on_delete=models.CASCADE, related_name='vm_metrics')
-    timestamp = models.DateTimeField(default=timezone.now)
-    cpu_usage = models.FloatField(default=0.0)  # Porcentaje
-    cpu_cores = models.IntegerField(default=1)
-    memory_usage = models.FloatField(default=0.0)  # Porcentaje
-    memory_total = models.BigIntegerField(default=0)  # Bytes
-    memory_used = models.BigIntegerField(default=0)  # Bytes
-    disk_read = models.BigIntegerField(default=0)  # Bytes/s
-    disk_write = models.BigIntegerField(default=0)  # Bytes/s
-    network_in = models.BigIntegerField(default=0)  # Bytes/s
-    network_out = models.BigIntegerField(default=0)  # Bytes/s
-    status = models.CharField(max_length=20, default='unknown')
-    uptime = models.BigIntegerField(default=0)  # Segundos
-    
-    class Meta:
-        ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['vm', '-timestamp']),
-            models.Index(fields=['-timestamp']),
-        ]
-        verbose_name = 'Métrica de VM'
-        verbose_name_plural = 'Métricas de VMs'
-
-    def __str__(self):
-        return f"{self.vm.nombre} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
 
 class MetricsAggregation(models.Model):
     """Agregaciones diarias de métricas para reportes"""
@@ -518,28 +412,44 @@ class MetricsAggregation(models.Model):
 
     def __str__(self):
         return f"{self.server.name} - {self.date}"
-    
-# Crear modelo de datos (tablas)
-from django.db import models
 
+# Modelo para métricas locales
+class LocalMetric(models.Model):
+    timestamp = models.DateTimeField(auto_now_add=True)
+    cpu_usage = models.FloatField()
+    memory_usage = models.FloatField()
+    disk_usage = models.FloatField()
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"Local Metrics - {self.timestamp}"
+    
 class ServerMetric(models.Model):
     """
     Tabla para guardar el historial de salud de los servidores Proxmox.
     Cada fila es una 'foto' del estado en un momento exacto.
     """
-    node_name = models.CharField(max_length=50, verbose_name="Nombre del Nodo")
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, null=True, blank=True, related_name='metrics')
+    # node_name eliminado porque no existe en la tabla real
     cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
-    ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
+    ram_usage = models.FloatField(verbose_name="Uso RAM (%)", db_column='memory_usage') # Mapear a columna real
+    disk_usage = models.FloatField(verbose_name="Uso Disco (%)", default=0) # Nueva columna detectada
     uptime = models.IntegerField(verbose_name="Tiempo Encendido (seg)")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
 
     class Meta:
         verbose_name = "Métrica de Servidor"
         verbose_name_plural = "Métricas de Servidores"
-        ordering = ['-created_at'] # Lo más reciente primero
+        ordering = ['-timestamp'] # Lo más reciente primero
 
     def __str__(self):
-        return f"{self.node_name} - {self.created_at.strftime('%H:%M:%S')} (CPU: {self.cpu_usage}%)"
+        name = self.server.name if self.server else "Unknown Server"
+        return f"{name} - {self.timestamp.strftime('%H:%M:%S')} (CPU: {self.cpu_usage}%)"
 
 class VMMetric(models.Model):
     """
@@ -550,15 +460,62 @@ class VMMetric(models.Model):
     cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
     ram_usage = models.FloatField(verbose_name="Uso RAM (%)")
     status = models.CharField(max_length=20, verbose_name="Estado")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Registro")
 
     class Meta:
         verbose_name = "Métrica de VM"
         verbose_name_plural = "Métricas de VMs"
-        ordering = ['-created_at']
+        ordering = ['-timestamp']
 
     def __str__(self):
-        return f"{self.vm_name} ({self.server_origin}) - {self.created_at.strftime('%H:%M:%S')}"
+        return f"{self.vm_name} ({self.server_origin}) - {self.timestamp.strftime('%H:%M:%S')}"
+        
+class ServerPrediction(models.Model):
+    """
+    Modelo para almacenar predicciones de uso de recursos de servidores Proxmox.
+    Utilizado por el sistema SARIMA para planificación de capacidad.
+    """
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, related_name='predictions')
+    timestamp = models.DateTimeField(verbose_name="Fecha Predicha")
+    predicted_cpu_usage = models.FloatField(verbose_name="CPU Predicha (%)")
+    predicted_memory_usage = models.FloatField(verbose_name="Memoria Predicha (%)")
+    confidence_lower = models.FloatField(null=True, blank=True, verbose_name="Confianza Inferior")
+    confidence_upper = models.FloatField(null=True, blank=True, verbose_name="Confianza Superior")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'age_server_prediction'
+        unique_together = ('server', 'timestamp')
+        indexes = [models.Index(fields=['timestamp'])]
+        verbose_name = 'Predicción de Servidor'
+        verbose_name_plural = 'Predicciones de Servidores'
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"Predicción {self.server.name} - {self.timestamp}"
+
+class VMPrediction(models.Model):
+    """
+    Modelo para almacenar predicciones de comportamiento de VMs.
+    Utilizado para detección de anomalías.
+    """
+    vm = models.ForeignKey(MaquinaVirtual, on_delete=models.CASCADE, related_name='predictions')
+    timestamp = models.DateTimeField(verbose_name="Fecha Predicha")
+    predicted_cpu_usage = models.FloatField(verbose_name="CPU Predicha (%)")
+    predicted_memory_usage = models.FloatField(verbose_name="Memoria Predicha (%)")
+    is_anomaly = models.BooleanField(default=False, verbose_name="Es Anomalía")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'age_vm_prediction'
+        unique_together = ('vm', 'timestamp')
+        indexes = [models.Index(fields=['timestamp'])]
+        verbose_name = 'Predicción de VM'
+        verbose_name_plural = 'Predicciones de VMs'
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"Predicción {self.vm.nombre} - {self.timestamp}"
 
 class AgentLog(models.Model):
     LEVELS = [

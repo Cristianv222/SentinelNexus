@@ -1,0 +1,116 @@
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar gráficos para los 3 servidores
+    [1, 2, 3].forEach(serverId => {
+        initCharts(serverId);
+        loadPredictions(serverId);
+    });
+});
+
+let charts = {};
+
+function initCharts(serverId) {
+    const ctxCpu = document.getElementById(`cpu-chart-${serverId}`).getContext('2d');
+    const ctxMem = document.getElementById(`mem-chart-${serverId}`).getContext('2d');
+
+    charts[`cpu-${serverId}`] = new Chart(ctxCpu, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Predicción CPU (%)',
+                data: [],
+                borderColor: '#f39c12',
+                backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                borderDash: [5, 5], // Línea punteada para predicción
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: 'white' } }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: { color: 'white' }
+                },
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: { color: 'white' }
+                }
+            }
+        }
+    });
+
+    charts[`mem-${serverId}`] = new Chart(ctxMem, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Predicción RAM (%)',
+                data: [],
+                borderColor: '#3498db',
+                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                borderDash: [5, 5],
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+             responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: 'white' } }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: { color: 'white' }
+                },
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: { color: 'white' }
+                }
+            }
+        }
+    });
+}
+
+function loadPredictions(serverId) {
+    fetch(`/api/predictions/${serverId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Actualizar CPU Chart
+                const cpuChart = charts[`cpu-${serverId}`];
+                cpuChart.data.labels = data.predictions.cpu.labels;
+                cpuChart.data.datasets[0].data = data.predictions.cpu.data;
+                cpuChart.update();
+
+                // Actualizar Mem Chart
+                const memChart = charts[`mem-${serverId}`];
+                memChart.data.labels = data.predictions.memory.labels;
+                memChart.data.datasets[0].data = data.predictions.memory.data;
+                memChart.update();
+                
+                // Mostrar recomendaciones si las hay
+                if (data.recommendations.length > 0) {
+                     // Podríamos inyectar alertas aquí
+                     console.log(`Recomendaciones para Servidor ${serverId}:`, data.recommendations);
+                }
+            }
+        })
+        .catch(error => console.error('Error loading predictions:', error));
+}
+</script>

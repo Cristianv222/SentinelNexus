@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+
+{% block title %}Predicciones IA - SentinelNexus{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Estilos copiados y adaptados de metrics.html para consistencia */
+    body {
+        background: #0f172a !important;
+    }
+    
+    .glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 25px;
+        margin-bottom: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    
+    .glass-header {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .section-title {
+        color: white;
+        font-weight: 700;
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Tabla personalizada */
+    .table-custom {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 8px;
+        color: rgba(255,255,255,0.9);
+    }
+    
+    .table-custom th {
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 1px;
+        color: rgba(255,255,255,0.5);
+        padding: 0 15px 10px 15px;
+        border: none;
+    }
+    
+    .table-custom tbody tr {
+        background: rgba(255, 255, 255, 0.03);
+        transition: all 0.2s ease;
+    }
+    
+    .table-custom tbody tr:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    .table-custom td {
+        padding: 15px;
+        border: none;
+    }
+    
+    .table-custom td:first-child {
+        border-radius: 10px 0 0 10px;
+    }
+    
+    .table-custom td:last-child {
+        border-radius: 0 10px 10px 0;
+    }
+
+    .badge-custom {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .badge-success { background: rgba(46, 204, 113, 0.2); color: #2ecc71; }
+    .badge-warning { background: rgba(243, 156, 18, 0.2); color: #f39c12; }
+    .badge-danger { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+    
+    .server-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.2rem;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+    
+    .vm-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ddd;
+    }
+    
+    .progress-bar-custom {
+        height: 6px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 3px;
+        overflow: hidden;
+        width: 100px;
+        margin-top: 5px;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: #3498db;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+    
+    /* Animaciones */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.4s ease forwards; opacity: 0; }
+    .animate-delay-1 { animation-delay: 0.1s; }
+    .animate-delay-2 { animation-delay: 0.2s; }
+    
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="padding: 30px;">
+    
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-5 animate-in">
+        <div>
+            <h1 class="display-5 text-white fw-bold mb-2">
+                <i class="fas fa-brain me-3" style="color: #00d2ff;"></i>Predicciones IA
+            </h1>
+            <p class="lead text-muted mb-0 pl-1">Motor de análisis predictivo SARIMA de SentinelNexus</p>
+        </div>
+        <div>
+             <button class="btn btn-primary btn-lg" onclick="location.reload()">
+                <i class="fas fa-sync-alt me-2"></i>Actualizar Datos
+            </button>
+        </div>
+    </div>
+
+    {% if agent_offline %}
+    <div class="alert alert-danger border-0 d-flex align-items-center mb-4 animate-in animate-delay-1" style="background: rgba(231, 76, 60, 0.25); color: #ffadad;">
+        <i class="fas fa-plug me-3 fs-4"></i>
+        <div>
+            <h5 class="alert-heading fw-bold mb-1">⚠️ Agente de Datos Inactivo</h5>
+            <p class="mb-0">
+                No se han recibido datos recientes del agente de vigilancia. 
+                {% if last_metric_time %}
+                Última actualización: <strong class="text-white">{{ last_metric_time|date:"d/m/Y H:i" }}</strong>.
+                {% endif %}
+                Por favor, asegúrese de que el servicio <code>iniciar_vigilancia</code> esté en ejecución.
+            </p>
+        </div>
+    </div>
+    {% elif demo_mode %}
+    <div class="alert alert-warning border-0 d-flex align-items-center mb-4 animate-in animate-delay-1" style="background: rgba(243, 156, 18, 0.25); color: #ffd68a;">
+        <i class="fas fa-exclamation-triangle me-3 fs-4"></i>
+        <div>
+            <h5 class="alert-heading fw-bold mb-1">Modo de Demostración Activo</h5>
+            <p class="mb-0">El sistema está recolectando datos históricos. Las predicciones mostradas son simuladas hasta que se complete el periodo de aprendizaje (24h).</p>
+        </div>
+    </div>
+    {% endif %}
+
+
+    <!-- Server Predictions -->
+    <div class="glass-card animate-in animate-delay-1">
+        <div class="glass-header">
+            <div class="section-title">
+                <i class="fas fa-server text-warning"></i>
+                Predicciones de Servidor (Próximas 24h)
+            </div>
+            <span class="badge badge-warning text-dark">Actualizado: Ahora</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th class="text-white">Servidor</th>
+                        <th class="text-white">Hora Estimada</th>
+                        <th class="text-white">CPU Predicho</th>
+                        <th class="text-white">RAM Predicha</th>
+                        <th class="text-white">Confianza (95%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pred in server_predictions %}
+                    <tr>
+                        <td width="25%">
+                            <div class="d-flex align-items-center">
+                                <div class="server-icon me-3">
+                                    <i class="fas fa-hdd"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-white mb-0 fw-bold">{{ pred.server.name }}</h6>
+                                    <small class="text-info">{{ pred.server.hostname }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="text-white fw-bold">{{ pred.timestamp|date:"H:i" }}</div>
+                            <small class="text-info">{{ pred.timestamp|date:"d/m/Y" }}</small>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="badge-custom {% if pred.predicted_cpu_usage > 80 %}badge-danger{% elif pred.predicted_cpu_usage > 50 %}badge-warning{% else %}badge-success{% endif %} me-2">
+                                    {{ pred.predicted_cpu_usage|floatformat:1 }}%
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                             <div class="d-flex flex-column">
+                                <span class="text-white fw-bold" style="font-size: 0.9rem;">{{ pred.predicted_memory_usage|floatformat:1 }}%</span>
+                                <div class="progress-bar-custom">
+                                    <div class="progress-fill" style="width: {{ pred.predicted_memory_usage|floatformat:0 }}%;"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <small style="color: #64dd17; font-weight: 600;">
+                                <i class="fas fa-chart-area me-1"></i>
+                                {{ pred.confidence_lower|floatformat:1 }} - {{ pred.confidence_upper|floatformat:1 }}
+                            </small>
+                        </td>
+                    </tr>
+                    {% empty %}
+                     <tr>
+                        <td colspan="5" class="text-center py-5">
+                            <div class="text-info mb-2"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
+                            <h5 class="text-white">Generando predicciones...</h5>
+                            <p class="text-white-50">El agente 'Cerebro' está entrenando los modelos.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- VM Anomalies -->
+    <div class="glass-card animate-in animate-delay-2">
+        <div class="glass-header">
+             <div class="section-title">
+                <i class="fas fa-microchip text-info"></i>
+                Detección de Anomalías (VMs)
+            </div>
+             <span class="badge badge-success text-dark">Estado: Monitoreando</span>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th class="text-white">Máquina Virtual</th>
+                        <th class="text-white">Hora Predicha</th>
+                        <th class="text-white">Comportamiento Esperado de CPU</th>
+                        <th class="text-white">Comportamiento Esperado de RAM</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pred in vm_predictions %}
+                    <tr>
+                        <td width="30%">
+                            <div class="d-flex align-items-center">
+                                <div class="vm-icon me-3">
+                                    <i class="fas fa-desktop"></i>
+                                </div>
+                                <span class="text-white fw-bold">{{ pred.vm.nombre }}</span>
+                            </div>
+                        </td>
+                        <td>
+                             <div class="px-2 py-1 rounded" style="background: rgba(255,255,255,0.1); display: inline-block;">
+                                <strong class="text-white">{{ pred.timestamp|date:"H:i" }}</strong> <small class="text-info">{{ pred.timestamp|date:"d/m/Y" }}</small>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="text-info fw-bold">{{ pred.predicted_cpu_usage|floatformat:2 }}%</span>
+                            <small class="text-white-50 ms-2">(Normal)</small>
+                        </td>
+                        <td>
+                             <span class="text-info fw-bold">{{ pred.predicted_memory_usage|floatformat:2 }}%</span>
+                             <small class="text-white-50 ms-2">(Normal)</small>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-white-50">
+                            <i class="fas fa-check-circle text-success mb-2 fs-4"></i>
+                            <p class="mb-0">No se detectaron anomalías predictivas recientes.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

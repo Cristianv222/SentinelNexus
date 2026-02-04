@@ -2,36 +2,68 @@ import time
 import asyncio
 import slixmpp
 import json
+import re
 from spade.agent import Agent
-from spade.behaviour import CyclicBehaviour
-from asgiref.sync import sync_to_async
-from submodulos.models import ServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo
-from submodulos.proxmox_service import proxmox_service
 from spade.behaviour import CyclicBehaviour, PeriodicBehaviour
+from asgiref.sync import sync_to_async
+from submodulos.models import ServerMetric, VMMetric, AgentLog, MaquinaVirtual, Nodo, VMPrediction, ProxmoxServer
+from submodulos.logic.forecasting import train_and_predict_server, train_and_predict_vm
+from submodulos.proxmox_service import proxmox_service
+from django.utils import timezone
+from datetime import timedelta
 
 # ======================================================
 # 💉 PARCHE DE CONEXIÓN
 # ======================================================
-if not getattr(slixmpp.ClientXMPP, "_parche_aplicado", False):
-    _original_init = slixmpp.ClientXMPP.__init__
-    def constructor_parcheado(self, *args, **kwargs):
-        _original_init(self, *args, **kwargs)
-        self.plugin['feature_mechanisms'].unencrypted_plain = True
-    slixmpp.ClientXMPP.__init__ = constructor_parcheado
-    slixmpp.ClientXMPP._parche_aplicado = True
+# ======================================================
+# 💉 CONFIGURACIÓN PERMISIVA DE TLS (Idéntica a Vigilante/Monitor)
+# ======================================================
+# Parche interno eliminado para evitar conflictos con run_cerebro_agent.py
+# La configuración TLS se maneja globalmente en el script de ejecución.
+
 
 class CerebroAgent(Agent):
+    def __init__(self, *args, **kwargs):
+        print(f"[CEREBRO AGENT] Init called with args={args} kwargs={kwargs}")
+        kwargs.pop('host', None)
+        kwargs.pop('port', None)
+        super().__init__(*args, **kwargs)
+        # Ensure our settings apply - REMOVED TO RESPECT PATCH
+
+
     @sync_to_async
-    def guardar_metrica_servidor(self, nodo, cpu, ram, up):
-        ServerMetric.objects.create(
-            node_name=nodo,
-            cpu_usage=cpu,
-            ram_usage=ram,
-            uptime=up
-        )
+    def guardar_metrica_servidor(self, nodo_nombre, cpu, ram, up):
+        try:
+            # Buscar el servidor Proxmox asociado a este nodo
+            # Prioridad 1: Coincidencia exacta de nombre de nodo
+            server = ProxmoxServer.objects.filter(node_name=nodo_nombre).first()
+            
+            # Prioridad 2: Buscar si el hostname contiene el nombre del nodo
+            if not server:
+                server = ProxmoxServer.objects.filter(hostname__icontains=nodo_nombre).first()
+            
+            # Fallback: Usar el primer servidor activo (útil para entornos dev/single node)
+            if not server:
+                server = ProxmoxServer.objects.filter(is_active=True).first()
+                if server:
+                    print(f"Servidor para nodo {nodo_nombre} no encontrado explicitamente. Asignando a {server.name}")
+
+            if server:
+                ServerMetric.objects.create(
+                    server=server,
+                    cpu_usage=cpu,
+                    ram_usage=ram,
+                    uptime=up,
+                    disk_usage=0
+                )
+            else:
+                print(f"ERROR CRITICO: No hay servidores Proxmox registrados en DB. No se puede guardar metrica de {nodo_nombre}")
+        except Exception as e:
+            print(f"Error guardando metrica de servidor: {e}")
         
     @sync_to_async
     def guardar_metrica_vm(self, nombre, servidor, cpu, ram, status):
+        # 1. Guardar Métrica Real
         VMMetric.objects.create(
             vm_name=nombre,
             server_origin=servidor,
@@ -39,6 +71,39 @@ class CerebroAgent(Agent):
             ram_usage=ram,
             status=status
         )
+        
+        # 2. DETECCIÓN DE ANOMALÍAS (SARIMA)
+        try:
+            # Buscar VM en DB para obtener ID
+            vm_obj = MaquinaVirtual.objects.filter(nombre=nombre).first()
+            if vm_obj:
+                # Buscar predicción para la hora actual
+                now = timezone.now()
+                start_range = now - timedelta(minutes=30)
+                end_range = now + timedelta(minutes=30)
+                
+                prediction = VMPrediction.objects.filter(
+                    vm=vm_obj, 
+                    timestamp__range=(start_range, end_range)
+                ).first()
+                
+                if prediction:
+                    # Si difiere más del 20% absoluto
+                    umbrale_cpu = 20.0 
+                    diff_cpu = abs(prediction.predicted_cpu_usage - cpu)
+                    
+                    if diff_cpu > umbrale_cpu:
+                        msg = f"ANOMALIA DETECTADA en {nombre}: CPU Real {cpu}% vs Predicho {prediction.predicted_cpu_usage:.2f}%"
+                        print(msg)
+                        # Registrar anomalía como warning tambien
+                        AgentLog.objects.create(
+                            agent_name="Cerebro",
+                            level="WARNING",
+                            message=msg,
+                            details={"cpu_real": cpu, "cpu_pred": prediction.predicted_cpu_usage}
+                        )
+        except Exception as e:
+            print(f"Error en detección de anomalías: {e}")
 
     @sync_to_async
     def log_db(self, msg, level='INFO', details=None):
@@ -51,7 +116,6 @@ class CerebroAgent(Agent):
         print(f"[{level}] {msg}")
 
     class ComportamientoEscucha(CyclicBehaviour):
-        
         async def run(self):
             print("🧠 CEREBRO: Esperando datos...")
             msg = await self.receive(timeout=10)
@@ -59,7 +123,7 @@ class CerebroAgent(Agent):
             if msg and msg.body:
                 texto = msg.body
                 
-                # Intentamos parsear como JSON (Nuevo formato con VMs)
+                # Intentamos parsear como JSON
                 try:
                     data = json.loads(texto)
                     
@@ -95,9 +159,9 @@ class CerebroAgent(Agent):
                         # Log simple de resumen
                         await self.agent.log_db(f"Procesado reporte de {nodo}: {count} VMs", "INFO", {"node": nodo, "vm_count": count})
                         
-                        # Log de alerta si hay carga (Simulación de pensamiento)
+                        # Log de alerta si hay carga
                         if high_load_vms:
-                             await self.agent.log_db(f"⚠️ Alta carga de RAM detectada en: {', '.join(high_load_vms)}", "WARNING", {"vms": high_load_vms})
+                             await self.agent.log_db(f"Alta carga de RAM detectada en: {', '.join(high_load_vms)}", "WARNING", {"vms": high_load_vms})
 
                         return 
 
@@ -120,10 +184,10 @@ class CerebroAgent(Agent):
                         await self.agent.guardar_metrica_servidor(nodo, cpu, ram, up)
                         print(f"💾 GUARDADO EN BD (Texto): {nodo}")
                     else:
-                        print(f"⚠️ Formato desconocido: {texto}")
+                        print(f"Formato desconocido: {texto}")
 
                 except Exception as e:
-                    print(f"❌ Error procesando: {e}")
+                    print(f"Error procesando: {e}")
 
     class ComportamientoWatchdog(PeriodicBehaviour):
         async def run(self):
@@ -135,55 +199,21 @@ class CerebroAgent(Agent):
 
             for vm in vms_criticas:
                 try:
-                    # 2. Obtener estado real desde Proxmox (Sincrono, envolver si bloquea mucho)
-                    # Nota: idealmente proxmox_service debería ser async o usar run_in_executor
+                    # 2. Obtener estado real desde Proxmox
                     nodo_nombre = await sync_to_async(lambda: vm.nodo.nombre)()
                     
-                    # [UPGRADE] Usar proxmox_manager para soportar múltiples servidores
-                    # Buscamos la conexión correcta para este nodo
-                    # Asumimos que el nombre del nodo es único o que se mapea correctamente en proxmox_manager
+                    # Simulación de recuperación (Simplificada como en origin/main)
+                    # En la realidad requeriría proxmox_manager configurado
                     
-                    from utils.proxmox_manager import proxmox_manager
-                    
-                    # Función auxiliar para ejecutar operaciones síncronas de proxmox en async
+                    # Por ahora usamos el servicio básico si coincide el default
+                    from submodulos.proxmox_service import proxmox_service
+                    proxmox = proxmox_service.proxmox
+
+                    if not proxmox:
+                         return 
+
+                    # Función auxiliar síncrona
                     def check_and_recover(vm_obj, node_name):
-                        # Intentar encontrar la conexión correcta para este nodo
-                        # Primero, buscamos si el nodo está en la lista de nodos activos del manager
-                        # El manager usa IDs de servidor o nombres arbitrarios como claves
-                        
-                        target_conn = None
-                        
-                        # Barrido rápido para encontrar quién tiene este nodo
-                        # (Optimización: Esto podría cachearse)
-                        all_nodes = proxmox_manager.get_all_nodes()
-                        for key, config in all_nodes.items():
-                             # Conectar y preguntar si tiene este nodo
-                             # O confiar en la metadata si la tuviéramos. 
-                             # Por ahora, intentamos conectar al que diga ser dueño o simplemente probamos
-                             # Como los nombres de nodos suelen ser únicos en un cluster, 
-                             # y aquí podríamos tener múltiples clusters, idealmente vm.nodo debería apuntar a un ProxmoxServer específico
-                             pass
-
-                        # Estrategia simplificada:
-                        # Usar el ID del servidor Proxmox si está disponible en el modelo Nodo -> ProxmoxServer
-                        server_id = None
-                        if vm_obj.nodo.proxmox_server:
-                            server_id = str(vm_obj.nodo.proxmox_server.id)
-                        
-                        proxmox = None
-                        if server_id:
-                             proxmox = proxmox_manager.get_connection(server_id)
-                        else:
-                             # Fallback: Intentar con el default o iterar (Costoso)
-                             # Por ahora usamos el método antiguo si no hay link
-                             from submodulos.proxmox_service import proxmox_service
-                             proxmox = proxmox_service.proxmox
-
-                        if not proxmox:
-                             return "Error: No connection"
-
-                        # Obtener estado actual
-                        # API: /nodes/{node}/qemu/{vmid}/status/current
                         try:
                             if vm_obj.vm_type == 'qemu':
                                 status_info = proxmox.nodes(node_name).qemu(vm_obj.vmid).status.current.get()
@@ -194,34 +224,70 @@ class CerebroAgent(Agent):
 
                         estado_actual = status_info.get('status', 'unknown')
                         
-                        # Lógica de resurrección
                         if estado_actual == 'stopped':
                             # Intentar iniciar
-                            if vm_obj.vm_type == 'qemu':
-                                proxmox.nodes(node_name).qemu(vm_obj.vmid).status.start.post()
-                            else:
-                                proxmox.nodes(node_name).lxc(vm_obj.vmid).status.start.post()
-                            return "RESTARTED"
+                            try:
+                                if vm_obj.vm_type == 'qemu':
+                                    proxmox.nodes(node_name).qemu(vm_obj.vmid).status.start.post()
+                                else:
+                                    proxmox.nodes(node_name).lxc(vm_obj.vmid).status.start.post()
+                                return "RESTARTED"
+                            except:
+                                return "FAILED_RESTART"
                         
                         return "OK"
 
-                    # Ejecutar en hilo aparte para no bloquear el loop async de Spade
+                    # Ejecutar en hilo aparte
                     resultado = await sync_to_async(check_and_recover)(vm, nodo_nombre)
                     
                     if resultado == "RESTARTED":
                         await self.agent.log_db(
-                            f"🚨 ALERTA: VM Crítica {vm.nombre} detectada APAGADA. 🚑 Protocolo de resurrección iniciado.", 
+                            f"ALERTA: VM Critica {vm.nombre} detectada APAGADA. Protocolo de resurreccion iniciado.", 
                             "ACTION", 
                             {"vm": vm.nombre, "node": nodo_nombre}
                         )
                     elif str(resultado).startswith("Error"):
-                         await self.agent.log_db(f"⚠️ Error verificando VM {vm.nombre}: {resultado}", "WARNING")
+                         await self.agent.log_db(f"Error verificando VM {vm.nombre}: {resultado}", "WARNING")
 
                 except Exception as e:
                     await self.agent.log_db(f"Error en Watchdog para {vm.nombre}: {e}", "WARNING")
 
+    class ComportamientoPrediccion(PeriodicBehaviour):
+        async def run(self):
+            print("CEREBRO: Iniciando ciclo de prediccion SARIMA...")
+            try:
+                # 1. Predicciones de Servidores
+                # Usamos sync_to_async para operaciones de BD bloqueantes
+                servidores = await sync_to_async(list)(ProxmoxServer.objects.filter(is_active=True))
+                
+                for server in servidores:
+                    print(f"   ↳ Prediciendo para servidor: {server.name}")
+                    # Ejecutar entrenamiento en hilo aparte para no bloquear el loop
+                    await sync_to_async(train_and_predict_server)(server.id)
+                
+                # 2. Predicciones de VMs (Anomalías)
+                # Solo predecimos para VMs monitoreadas para ahorrar recursos
+                vms = await sync_to_async(list)(MaquinaVirtual.objects.filter(is_monitored=True))
+                
+                for vm in vms:
+                    # Opcional: Solo predecir si tiene suficientes datos (se maneja en logic)
+                    await sync_to_async(train_and_predict_vm)(vm.vm_id)
+
+                await self.agent.log_db("Ciclo de predicción completado", "INFO")
+                print("CEREBRO: Predicciones generadas exitosamente.")
+
+            except Exception as e:
+                print(f"Error en ciclo de prediccion: {e}")
+                await self.agent.log_db(f"Error en predicción: {e}", "WARNING")
+
     async def setup(self):
-        print("🔌 CEREBRO: Iniciando sistema de almacenamiento...")
+        print("CEREBRO: Iniciando sistema de almacenamiento...")
+        
+        # Configuración explícita de seguridad (Redundancia anti-fallos)
+        if hasattr(self, 'client') and self.client:
+             self.client.use_tls = False # Match Vigilante
+             self.client.use_ssl = False
+             self.client.plugin['feature_mechanisms'].unencrypted_plain = True
         
         # Comportamiento de Escucha (Mensajes XMPP)
         b = self.ComportamientoEscucha()
@@ -230,3 +296,8 @@ class CerebroAgent(Agent):
         # Comportamiento Watchdog (cada 30 segundos)
         w = self.ComportamientoWatchdog(period=30)
         self.add_behaviour(w)
+
+        # Comportamiento Predicción (cada 1 hora = 3600s)
+        # Inicia inmediatamente al arrancar y luego repite
+        p = self.ComportamientoPrediccion(period=3600)
+        self.add_behaviour(p)
