@@ -25,9 +25,14 @@ def constructor_permissive(self, *args, **kwargs):
     kwargs['use_tls'] = False
     kwargs['use_ssl'] = False
     kwargs['disable_starttls'] = True
-    kwargs['force_starttls'] = False # <--- CRITICAL FIX
+    kwargs['force_starttls'] = False 
 
     _original_init(self, *args, **kwargs)
+    
+    # 🩹 POST-INIT OVERRIDE (Doble seguridad)
+    self.force_starttls = False
+    self.disable_starttls = True
+    print(f"[RUNNER] CLIENTE INICIALIZADO. force_starttls={self.force_starttls}, disable_starttls={self.disable_starttls}, use_tls={self.use_tls}")
     
     # Configuración para aceptar certificados inválidos/autofirmados
     self.use_tls = False  # <--- FORZADO OFF (PLAIN)
