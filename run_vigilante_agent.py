@@ -82,15 +82,19 @@ try:
     # 🩸 PARCHE AL START (ULTIMO RECURSO)
     _original_start = spade.agent.Agent.start
     async def start_hook(self, *args, **kwargs):
-        print(f"[RUNNER] START INTERCEPTADO. Analizando origen...")
+        print(f"[RUNNER] START INTERCEPTADO. Spade Version: {spade.__version__}")
         try:
             import inspect
-            src = inspect.getsource(_original_start)
-            print(f"[DEBUG-SOURCE] Código de Agent.start remoto:\n{src}")
+            # Intentar obtener _async_start
+            async_start_method = getattr(self, '_async_start', None)
+            if async_start_method:
+                 src = inspect.getsource(async_start_method)
+                 print(f"[DEBUG-SOURCE] Código de _async_start remoto:\n{src}")
+            else:
+                 print("[DEBUG-SOURCE] No se encontró _async_start")
+                 
         except Exception as e:
             print(f"[DEBUG-SOURCE] No se pudo leer source: {e}")
-            
-        print(f"[DEBUG] spade.agent dir: {dir(spade.agent)}")
             
         return await _original_start(self, *args, **kwargs)
         
