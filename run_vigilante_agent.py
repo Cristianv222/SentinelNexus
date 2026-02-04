@@ -25,6 +25,7 @@ def constructor_permissive(self, *args, **kwargs):
     kwargs['use_tls'] = False
     kwargs['use_ssl'] = False
     kwargs['disable_starttls'] = True
+    kwargs['force_starttls'] = False # <--- CRITICAL FIX
 
     _original_init(self, *args, **kwargs)
     
