@@ -36,6 +36,11 @@ _original_connect = slixmpp.ClientXMPP.connect
 def connect_parcheado(self, *args, **kwargs):
     if 'host' in kwargs: del kwargs['host']
     if 'port' in kwargs: del kwargs['port']
+    
+    # 🩹 FORZAR PARAMETROS EN CONNECT
+    kwargs['use_ssl'] = False
+    kwargs['disable_starttls'] = True
+    
     xmpp_host = os.getenv('XMPP_HOST')
     if xmpp_host:
         kwargs['address'] = (xmpp_host, 5222)

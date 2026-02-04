@@ -1,4 +1,6 @@
 
+import sys
+print(f"DEBUG: STARTING EXECUTION. Python: {sys.executable}")
 import os
 import asyncio
 import time
