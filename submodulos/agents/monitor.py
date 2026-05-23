@@ -127,7 +127,7 @@ class MonitorAgent(Agent):
             except Exception as e:
                 print(f"ERROR GENERAL MONITOR ({self.agent.proxmox_ip}): {e}")
             
-            await asyncio.sleep(15)
+            await asyncio.sleep(180)
 
     async def setup(self):
         print(f"MONITOR INICIADO PARA: {self.proxmox_ip}")
