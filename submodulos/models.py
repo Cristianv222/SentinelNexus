@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
@@ -435,7 +436,7 @@ class ServerMetric(models.Model):
     Cada fila es una 'foto' del estado en un momento exacto.
     """
     server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, null=True, blank=True, related_name='metrics')
-    # node_name eliminado porque no existe en la tabla real
+    node_name = models.CharField(max_length=100, default="pve", verbose_name="Nombre del Nodo")
     cpu_usage = models.FloatField(verbose_name="Uso CPU (%)")
     ram_usage = models.FloatField(verbose_name="Uso RAM (%)", db_column='memory_usage') # Mapear a columna real
     disk_usage = models.FloatField(verbose_name="Uso Disco (%)", default=0) # Nueva columna detectada
@@ -516,6 +517,42 @@ class VMPrediction(models.Model):
 
     def __str__(self):
         return f"Predicción {self.vm.nombre} - {self.timestamp}"
+
+class XAIExplanationLog(models.Model):
+    TIPO_ENTIDAD_CHOICES = [
+        ('server', 'Servidor Proxmox'),
+        ('vm', 'Máquina Virtual')
+    ]
+    
+    tipo_entidad = models.CharField(max_length=20, choices=TIPO_ENTIDAD_CHOICES)
+    server = models.ForeignKey(ProxmoxServer, on_delete=models.CASCADE, null=True, blank=True, related_name='xai_logs')
+    vm = models.ForeignKey(MaquinaVirtual, on_delete=models.CASCADE, null=True, blank=True, related_name='xai_logs')
+    
+    timestamp_prediccion = models.DateTimeField(verbose_name="Fecha Objetivo Predicha")
+    cpu_predicha = models.FloatField(verbose_name="CPU Predicha (%)")
+    ram_predicha = models.FloatField(verbose_name="RAM Predicha (%)")
+    is_anomaly = models.BooleanField(default=False, verbose_name="Es Anomalía")
+    
+    # Narrativas generadas
+    diagnostico_evento = models.CharField(max_length=255, verbose_name="Diagnóstico de Evento")
+    explicacion_texto = models.TextField(verbose_name="Explicación Detallada (Narrativa)")
+    accion_recomendada = models.CharField(max_length=255, verbose_name="Acción Recomendada")
+    
+    # Datos de auditoría técnica (JSON)
+    valores_shap = models.JSONField(verbose_name="Valores SHAP Raw")
+    features_usadas = models.JSONField(verbose_name="Características de Entrada")
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Análisis")
+
+    class Meta:
+        db_table = 'age_xai_explanation_log'
+        verbose_name = 'Registro de Explicación XAI'
+        verbose_name_plural = 'Registros de Explicaciones XAI'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        nombre = self.server.name if self.tipo_entidad == 'server' and self.server else (self.vm.nombre if self.vm else "Desconocido")
+        return f"[{self.get_tipo_entidad_display()}] {nombre} - {self.timestamp_prediccion.strftime('%d/%m %H:%M')}"
 
 class AgentLog(models.Model):
     LEVELS = [

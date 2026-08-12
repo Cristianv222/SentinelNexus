@@ -240,7 +240,7 @@ CELERY_BEAT_SCHEDULE = {
     # Monitoreo de nodos Proxmox (CPU, RAM, Disco del HOST) - Cada 1 minuto
     'monitor-proxmox-every-minute': {
         'task': 'submodulos.tasks.monitor_all_proxmox_servers',
-        'schedule': crontab(minute='*'),
+        'schedule': crontab(minute='*/3'),
     },
     # Sincronización de inventario de VMs - Cada 5 minutos (Opcional, si se desea)
     # 'sync-proxmox-inventory': {

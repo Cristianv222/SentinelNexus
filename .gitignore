@@ -72,3 +72,8 @@ coverage.xml
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Temp logs & scratch
+git_history_log.txt
+PRUEBA_VSCODE.md
+celerybeat-schedule*
