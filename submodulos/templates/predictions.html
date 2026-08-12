@@ -350,6 +350,58 @@
         </div>
     </div>
 
+    <!-- Tarjetas KPI de Calibración y Métricas de Precisión ML -->
+    <div class="row g-3 mb-4 animate-in">
+        <div class="col-md-3">
+            <div class="glass-card mb-0 p-3" style="background: rgba(0, 210, 255, 0.04); border-color: rgba(0, 210, 255, 0.15);">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <small class="text-white-50 text-uppercase d-block fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">Calidad de Ajuste (R²)</small>
+                        <h4 class="text-white fw-bold mb-0 mt-1" style="font-family: monospace;">{{ ml_metrics.avg_r2 }}</h4>
+                    </div>
+                    <div class="text-info fs-3"><i class="fas fa-bullseye"></i></div>
+                </div>
+                <small class="text-info d-block mt-2" style="font-size: 0.65rem;">Capacidad explicativa del modelo</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card mb-0 p-3" style="background: rgba(46, 204, 113, 0.04); border-color: rgba(46, 204, 113, 0.15);">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <small class="text-white-50 text-uppercase d-block fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">RMSE Medio (CPU)</small>
+                        <h4 class="text-success fw-bold mb-0 mt-1" style="font-family: monospace;">±{{ ml_metrics.avg_rmse }}%</h4>
+                    </div>
+                    <div class="text-success fs-3"><i class="fas fa-chart-line"></i></div>
+                </div>
+                <small class="text-white-50 d-block mt-2" style="font-size: 0.65rem;">Error cuadrático medio out-of-fold</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card mb-0 p-3" style="background: rgba(243, 156, 18, 0.04); border-color: rgba(243, 156, 18, 0.15);">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <small class="text-white-50 text-uppercase d-block fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">MAE (Desviación Absoluta)</small>
+                        <h4 class="text-warning fw-bold mb-0 mt-1" style="font-family: monospace;">{{ ml_metrics.avg_mae }}%</h4>
+                    </div>
+                    <div class="text-warning fs-3"><i class="fas fa-ruler-combined"></i></div>
+                </div>
+                <small class="text-white-50 d-block mt-2" style="font-size: 0.65rem;">Error absoluto promedio global</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="glass-card mb-0 p-3" style="background: rgba(155, 89, 182, 0.04); border-color: rgba(155, 89, 182, 0.15);">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <small class="text-white-50 text-uppercase d-block fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">Modelos Calibrados</small>
+                        <h4 class="text-white fw-bold mb-0 mt-1" style="font-family: monospace;">{{ ml_metrics.models_count }} Instancias</h4>
+                    </div>
+                    <div class="text-purple fs-3" style="color: #9b59b6;"><i class="fas fa-microchip"></i></div>
+                </div>
+                <small class="text-white-50 d-block mt-2" style="font-size: 0.65rem;">Servidores & VMs activas</small>
+            </div>
+        </div>
+    </div>
+
 
 
 
