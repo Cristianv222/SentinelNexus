@@ -4364,7 +4364,7 @@ def predictions_dashboard(request):
     """
     Vista para mostrar el dashboard de predicciones y anomalías.
     """
-    from submodulos.models import ServerPrediction, VMPrediction
+    from submodulos.models import ServerPrediction, VMPrediction, XAIExplanationLog
     from django.utils import timezone
     
     now = timezone.now()
@@ -4413,10 +4413,54 @@ def predictions_dashboard(request):
         # En caso de error, asumimos lo peor para obligar a revisar
         agent_offline = True
     
+    # Obtener logs explicativos XAI (SHAP) generados por el agente Cerebro
+    xai_logs = AgentLog.objects.filter(agent_name="Cerebro").order_by('-timestamp')[:10]
+    
+    # Obtener el historial completo y detallado desde la nueva tabla relacional
+    xai_history = XAIExplanationLog.objects.select_related('server', 'vm').order_by('-created_at')[:30]
+    
+    # Si no hay predicciones de servidor generadas aún, ejecutar el pipeline automático para poblar la vista
+    if not server_predictions.exists():
+        try:
+            from submodulos.logic.forecasting import train_and_predict_all
+            train_and_predict_all(steps=24)
+            server_predictions = ServerPrediction.objects.filter(
+                timestamp__gte=start_date
+            ).order_by('-timestamp', 'server__name')[:50]
+            vm_predictions = VMPrediction.objects.filter(
+                timestamp__gte=start_date
+            ).order_by('-timestamp', 'vm__nombre')[:20]
+        except Exception as e:
+            logger.error(f"Error auto-generando predicciones para dashboard: {e}")
+    
     return render(request, 'predictions.html', {
         'server_predictions': server_predictions,
         'vm_predictions': vm_predictions,
         'demo_mode': demo_mode,
         'agent_offline': agent_offline,
-        'last_metric_time': last_metric_time
+        'last_metric_time': last_metric_time,
+        'xai_logs': xai_logs,
+        'xai_history': xai_history
     })
+
+@login_required
+@require_http_methods(["POST", "GET"])
+def trigger_forecasting_training(request):
+    """
+    Endpoint API para desencadenar el entrenamiento y predicción de Machine Learning (XGBoost + SHAP)
+    bajo demanda desde el botón "Actualizar Datos" en la UI.
+    """
+    from submodulos.logic.forecasting import train_and_predict_all
+    try:
+        train_and_predict_all(steps=24)
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Pipeline de Machine Learning (XGBoost + SHAP XAI) ejecutado exitosamente.'
+        })
+    except Exception as e:
+        logger.error(f"Error al desencadenar entrenamiento ML: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error al ejecutar entrenamiento: {str(e)}'
+        }, status=500)
+

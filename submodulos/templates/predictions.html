@@ -139,6 +139,193 @@
     .animate-delay-1 { animation-delay: 0.1s; }
     .animate-delay-2 { animation-delay: 0.2s; }
     
+    @keyframes pulse-glow {
+        0% { box-shadow: 0 0 5px rgba(0, 210, 255, 0.2); }
+        50% { box-shadow: 0 0 15px rgba(0, 210, 255, 0.6); }
+        100% { box-shadow: 0 0 5px rgba(0, 210, 255, 0.2); }
+    }
+    
+    @keyframes spin-slow {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .xai-badge-pulse {
+        animation: pulse-glow 2s infinite ease-in-out;
+    }
+    
+    .fa-spin-slow {
+        animation: spin-slow 8s infinite linear;
+        display: inline-block;
+    }
+    
+    .xai-log-card {
+        background: rgba(0, 210, 255, 0.03);
+        border-left: 4px solid #00d2ff;
+        border-radius: 0 12px 12px 0;
+        padding: 15px;
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+    }
+    
+    .xai-log-card:hover {
+        background: rgba(0, 210, 255, 0.07);
+        transform: translateX(3px);
+    }
+    
+    
+    /* Accordion Premium de Auditoría XAI */
+    .xai-accordion-item {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .xai-accordion-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(0, 210, 255, 0.2);
+        box-shadow: 0 4px 20px rgba(0, 210, 255, 0.05);
+    }
+    
+    .xai-accordion-header {
+        padding: 18px 24px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+    }
+    
+    .xai-accordion-header .entity-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .xai-accordion-header .toggle-icon {
+        font-size: 1.1rem;
+        color: rgba(255, 255, 255, 0.4);
+        transition: transform 0.3s ease;
+    }
+    
+    .xai-accordion-item.expanded {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(0, 210, 255, 0.3);
+    }
+    
+    .xai-accordion-item.expanded .xai-accordion-header {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    
+    .xai-accordion-item.expanded .toggle-icon {
+        transform: rotate(180deg);
+        color: #00d2ff;
+    }
+    
+    .xai-accordion-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: rgba(0, 0, 0, 0.15);
+    }
+    
+    .xai-accordion-item.expanded .xai-accordion-content {
+        max-height: 1200px; /* Suficiente para el contenido */
+    }
+    
+    .xai-accordion-body {
+        padding: 25px;
+    }
+    
+    /* Barras de Contribución SHAP */
+    .shap-bar-container {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        background: rgba(255,255,255,0.02);
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.03);
+    }
+    
+    .shap-bar-label {
+        width: 30%;
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .shap-bar-track {
+        flex-grow: 1;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 5px;
+        overflow: hidden;
+        margin: 0 15px;
+        position: relative;
+    }
+    
+    .shap-bar-fill {
+        height: 100%;
+        border-radius: 5px;
+        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .shap-bar-fill-positive {
+        background: linear-gradient(90deg, #f39c12, #e74c3c);
+    }
+    
+    .shap-bar-fill-negative {
+        background: linear-gradient(90deg, #2ecc71, #1abc9c);
+    }
+    
+    .shap-bar-value {
+        width: 80px;
+        text-align: right;
+        font-size: 0.8rem;
+        font-family: monospace;
+        font-weight: bold;
+    }
+    
+    .text-shap-pos { color: #ff6b6b; }
+    .text-shap-neg { color: #51cf66; }
+    
+    /* Variables de Entrada Grid */
+    .param-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 12px;
+    }
+    
+    .param-card {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 8px;
+        padding: 10px;
+        text-align: center;
+    }
+    
+    .param-card-label {
+        font-size: 0.65rem;
+        color: rgba(255,255,255,0.4);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+    
+    .param-card-value {
+        font-size: 0.9rem;
+        font-family: monospace;
+        color: white;
+        font-weight: bold;
+    }
+    
 </style>
 {% endblock %}
 
@@ -148,116 +335,132 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-5 animate-in">
         <div>
-            <h1 class="display-5 text-white fw-bold mb-2">
+            <h1 class="display-5 text-white fw-bold mb-2 d-flex align-items-center">
                 <i class="fas fa-brain me-3" style="color: #00d2ff;"></i>Predicciones IA
+                <span class="badge ms-3 fs-6 px-3 py-2 xai-badge-pulse" style="background: linear-gradient(135deg, rgba(0, 210, 255, 0.2), rgba(52, 152, 219, 0.2)); border: 1px solid rgba(0, 210, 255, 0.4); color: #00d2ff; border-radius: 30px;">
+                    <i class="fas fa-shield-alt me-2 fa-spin-slow"></i>XAI ACTIVA
+                </span>
             </h1>
-            <p class="lead text-muted mb-0 pl-1">Motor de análisis predictivo SARIMA de SentinelNexus</p>
+            <p class="lead text-muted mb-0 pl-1">Motor de análisis predictivo explicable (XGBoost + SHAP) de SentinelNexus</p>
         </div>
         <div>
-             <button class="btn btn-primary btn-lg" onclick="location.reload()">
-                <i class="fas fa-sync-alt me-2"></i>Actualizar Datos
+             <button class="btn btn-primary btn-lg" id="btn-trigger-forecasting" onclick="runMlTrainingPipeline()">
+                <i class="fas fa-brain me-2" id="icon-trigger-forecasting"></i><span id="text-trigger-forecasting">Actualizar Datos</span>
             </button>
         </div>
     </div>
 
-    {% if agent_offline %}
-    <div class="alert alert-danger border-0 d-flex align-items-center mb-4 animate-in animate-delay-1" style="background: rgba(231, 76, 60, 0.25); color: #ffadad;">
-        <i class="fas fa-plug me-3 fs-4"></i>
-        <div>
-            <h5 class="alert-heading fw-bold mb-1">⚠️ Agente de Datos Inactivo</h5>
-            <p class="mb-0">
-                No se han recibido datos recientes del agente de vigilancia. 
-                {% if last_metric_time %}
-                Última actualización: <strong class="text-white">{{ last_metric_time|date:"d/m/Y H:i" }}</strong>.
-                {% endif %}
-                Por favor, asegúrese de que el servicio <code>iniciar_vigilancia</code> esté en ejecución.
-            </p>
-        </div>
-    </div>
-    {% elif demo_mode %}
-    <div class="alert alert-warning border-0 d-flex align-items-center mb-4 animate-in animate-delay-1" style="background: rgba(243, 156, 18, 0.25); color: #ffd68a;">
-        <i class="fas fa-exclamation-triangle me-3 fs-4"></i>
-        <div>
-            <h5 class="alert-heading fw-bold mb-1">Modo de Demostración Activo</h5>
-            <p class="mb-0">El sistema está recolectando datos históricos. Las predicciones mostradas son simuladas hasta que se complete el periodo de aprendizaje (24h).</p>
-        </div>
-    </div>
-    {% endif %}
 
 
-    <!-- Server Predictions -->
-    <div class="glass-card animate-in animate-delay-1">
-        <div class="glass-header">
-            <div class="section-title">
-                <i class="fas fa-server text-warning"></i>
-                Predicciones de Servidor (Próximas 24h)
+
+    <!-- Fila de 2 Columnas: XAI Izquierda | Predicciones Servidor Derecha -->
+    <div class="row g-4 mb-5">
+        
+        <!-- Columna Izquierda: Centro de Explicabilidad SHAP XAI -->
+        <div class="col-lg-6 d-flex align-items-stretch">
+            <div class="glass-card animate-in animate-delay-1 w-100 mb-0 d-flex flex-column h-100" style="min-height: 480px;">
+                <div class="glass-header">
+                    <div class="section-title">
+                        <i class="fas fa-eye text-info"></i>
+                        Centro de Explicabilidad SHAP (XAI)
+                    </div>
+                    <span class="badge badge-success text-dark xai-badge-pulse" style="background: rgba(0, 210, 255, 0.2); color: #00d2ff; border: 1px solid rgba(0, 210, 255, 0.4); font-weight: bold;"><i class="fas fa-brain me-1"></i>En Vivo</span>
+                </div>
+                
+                <div class="xai-logs-container flex-grow-1" style="max-height: 380px; overflow-y: auto; padding-right: 5px;">
+                    {% for log in xai_logs %}
+                    <div class="xai-log-card animate-in mb-2" style="animation-delay: {{ forloop.counter0|add:1 }}00ms;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-white" style="font-size: 0.88rem;">
+                                <i class="fas {% if log.level == 'WARNING' %}fa-exclamation-triangle text-warning{% else %}fa-check-circle text-info{% endif %} me-2"></i>
+                                {{ log.message }}
+                            </span>
+                            <small class="text-muted ms-2" style="font-size: 0.72rem; white-space: nowrap;">{{ log.timestamp|date:"d/m H:i" }}</small>
+                        </div>
+                        {% if log.details.explanation_shap %}
+                        <div class="ps-4 mt-1" style="font-size: 0.82rem; color: rgba(0, 210, 255, 0.95);">
+                            <i class="fas fa-quote-left me-1 text-white-50" style="font-size: 0.65rem;"></i>
+                            {{ log.details.explanation_shap }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5 text-white-50 h-100 d-flex flex-column justify-content-center align-items-center" style="min-height: 200px;">
+                        <i class="fas fa-microchip mb-2 fs-4 text-muted"></i>
+                        <p class="mb-0" style="font-size: 0.85rem;">Esperando el próximo ciclo de explicabilidad... El agente 'Cerebro' generará explicaciones automáticamente.</p>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            <span class="badge badge-warning text-dark">Actualizado: Ahora</span>
+        </div>
+
+        <!-- Columna Derecha: Predicciones de Servidor (Próximas 24h) -->
+        <div class="col-lg-6 d-flex align-items-stretch">
+            <div class="glass-card animate-in animate-delay-1 w-100 mb-0 d-flex flex-column h-100" style="min-height: 480px;">
+                <div class="glass-header">
+                    <div class="section-title">
+                        <i class="fas fa-server text-warning"></i>
+                        Predicciones de Servidor (Próximas 24h)
+                    </div>
+                    <span class="badge badge-warning text-dark">Actualizado: Ahora</span>
+                </div>
+                
+                <div class="table-responsive flex-grow-1" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th class="text-white" style="font-size: 0.75rem;">Servidor</th>
+                                <th class="text-white" style="font-size: 0.75rem;">Hora</th>
+                                <th class="text-white" style="font-size: 0.75rem;">CPU</th>
+                                <th class="text-white" style="font-size: 0.75rem;">RAM</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pred in server_predictions %}
+                            <tr>
+                                <td width="30%">
+                                    <div class="d-flex align-items-center">
+                                        <div class="server-icon me-2" style="width: 32px; height: 32px; font-size: 0.9rem; border-radius: 8px;">
+                                            <i class="fas fa-hdd"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="text-white mb-0 fw-bold" style="font-size: 0.85rem;">{{ pred.server.name }}</h6>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-white fw-bold" style="font-size: 0.8rem;">{{ pred.timestamp|date:"H:i" }}</div>
+                                    <small class="text-info" style="font-size: 0.65rem;">{{ pred.timestamp|date:"d/m" }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge-custom {% if pred.predicted_cpu_usage > 80 %}badge-danger{% elif pred.predicted_cpu_usage > 50 %}badge-warning{% else %}badge-success{% endif %} px-2 py-1" style="font-size: 0.75rem;">
+                                        {{ pred.predicted_cpu_usage|floatformat:1 }}%
+                                    </span>
+                                </td>
+                                <td>
+                                     <div class="d-flex flex-column">
+                                        <span class="text-white fw-bold" style="font-size: 0.8rem;">{{ pred.predicted_memory_usage|floatformat:1 }}%</span>
+                                        <div class="progress-bar-custom" style="width: 60px;">
+                                            <div class="progress-fill" style="width: {{ pred.predicted_memory_usage|floatformat:0 }}%;"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                             <tr>
+                                <td colspan="4" class="text-center py-5 h-100 d-flex flex-column justify-content-center align-items-center" style="min-height: 250px;">
+                                    <div class="text-info mb-2"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
+                                    <h6 class="text-white" style="font-size: 0.95rem;">Generando predicciones...</h6>
+                                    <p class="text-white-50" style="font-size: 0.75rem;">El agente 'Cerebro' está entrenando los modelos.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
         
-        <div class="table-responsive">
-            <table class="table-custom">
-                <thead>
-                    <tr>
-                        <th class="text-white">Servidor</th>
-                        <th class="text-white">Hora Estimada</th>
-                        <th class="text-white">CPU Predicho</th>
-                        <th class="text-white">RAM Predicha</th>
-                        <th class="text-white">Confianza (95%)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for pred in server_predictions %}
-                    <tr>
-                        <td width="25%">
-                            <div class="d-flex align-items-center">
-                                <div class="server-icon me-3">
-                                    <i class="fas fa-hdd"></i>
-                                </div>
-                                <div>
-                                    <h6 class="text-white mb-0 fw-bold">{{ pred.server.name }}</h6>
-                                    <small class="text-info">{{ pred.server.hostname }}</small>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="text-white fw-bold">{{ pred.timestamp|date:"H:i" }}</div>
-                            <small class="text-info">{{ pred.timestamp|date:"d/m/Y" }}</small>
-                        </td>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <span class="badge-custom {% if pred.predicted_cpu_usage > 80 %}badge-danger{% elif pred.predicted_cpu_usage > 50 %}badge-warning{% else %}badge-success{% endif %} me-2">
-                                    {{ pred.predicted_cpu_usage|floatformat:1 }}%
-                                </span>
-                            </div>
-                        </td>
-                        <td>
-                             <div class="d-flex flex-column">
-                                <span class="text-white fw-bold" style="font-size: 0.9rem;">{{ pred.predicted_memory_usage|floatformat:1 }}%</span>
-                                <div class="progress-bar-custom">
-                                    <div class="progress-fill" style="width: {{ pred.predicted_memory_usage|floatformat:0 }}%;"></div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <small style="color: #64dd17; font-weight: 600;">
-                                <i class="fas fa-chart-area me-1"></i>
-                                {{ pred.confidence_lower|floatformat:1 }} - {{ pred.confidence_upper|floatformat:1 }}
-                            </small>
-                        </td>
-                    </tr>
-                    {% empty %}
-                     <tr>
-                        <td colspan="5" class="text-center py-5">
-                            <div class="text-info mb-2"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
-                            <h5 class="text-white">Generando predicciones...</h5>
-                            <p class="text-white-50">El agente 'Cerebro' está entrenando los modelos.</p>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
     </div>
 
     <!-- VM Anomalies -->
@@ -317,6 +520,262 @@
             </table>
         </div>
     </div>
+
+    <!-- 🏛️ Historial de Auditoría XAI (Explicabilidad) -->
+    <div class="glass-card animate-in animate-delay-2 mt-5">
+        <div class="glass-header">
+             <div class="section-title">
+                <i class="fas fa-university text-info"></i>
+                Historial de Auditoría e Inferencia XAI
+            </div>
+            <span class="badge" style="background: rgba(0, 210, 255, 0.1); color: #00d2ff; border: 1px solid rgba(0, 210, 255, 0.2);">
+                <i class="fas fa-database me-1"></i>{{ xai_history|length }} Registros Guardados
+            </span>
+        </div>
+        
+        <div class="xai-accordion-container">
+            {% for log in xai_history %}
+            <div class="xai-accordion-item" id="xai-item-{{ log.id }}">
+                <!-- Cabecera -->
+                <div class="xai-accordion-header" onclick="toggleXaiItem('xai-item-{{ log.id }}')">
+                    <div class="entity-info">
+                        {% if log.tipo_entidad == 'server' %}
+                        <div class="server-icon" style="background: linear-gradient(135deg, #00d2ff, #0081a7); width: 38px; height: 38px;">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div>
+                            <span class="badge mb-1" style="background: rgba(0, 210, 255, 0.15); color: #00d2ff; font-size: 0.65rem;">SERVIDOR PROXMOX</span>
+                            <h6 class="text-white mb-0 fw-bold" style="font-size: 0.9rem;">{{ log.server.name }}</h6>
+                        </div>
+                        {% else %}
+                        <div class="server-icon" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7); width: 38px; height: 38px;">
+                            <i class="fas fa-desktop"></i>
+                        </div>
+                        <div>
+                            <span class="badge mb-1" style="background: rgba(162, 155, 254, 0.15); color: #a29bfe; font-size: 0.65rem;">MÁQUINA VIRTUAL</span>
+                            <h6 class="text-white mb-0 fw-bold" style="font-size: 0.9rem;">{{ log.vm.nombre }}</h6>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex align-items-center gap-4">
+                        <div class="text-end">
+                            <span class="text-white-50" style="font-size: 0.72rem; display: block;">FECHA DEL ANÁLISIS</span>
+                            <strong class="text-white" style="font-size: 0.8rem;">{{ log.created_at|date:"d/m/Y H:i:s" }}</strong>
+                        </div>
+                        
+                        <div class="text-center" style="min-width: 90px;">
+                            <span class="text-white-50" style="font-size: 0.72rem; display: block;">CPU PICO</span>
+                            <span class="badge-custom {% if log.cpu_predicha > 80 %}badge-danger{% elif log.cpu_predicha > 55 %}badge-warning{% else %}badge-success{% endif %} px-2 py-1 mt-1" style="font-size: 0.78rem;">
+                                {{ log.cpu_predicha|floatformat:1 }}%
+                            </span>
+                        </div>
+                        
+                        <div class="text-center" style="min-width: 90px;">
+                            <span class="text-white-50" style="font-size: 0.72rem; display: block;">RAM PICO</span>
+                            <span class="text-white fw-bold d-block mt-1" style="font-size: 0.85rem;">{{ log.ram_predicha|floatformat:1 }}%</span>
+                        </div>
+
+                        <div style="min-width: 140px;" class="text-end">
+                            <span class="text-white-50" style="font-size: 0.72rem; display: block;">DIAGNÓSTICO</span>
+                            <span class="fw-bold {% if log.is_anomaly %}text-danger{% elif log.cpu_predicha > 55 %}text-warning{% else %}text-info{% endif %}" style="font-size: 0.8rem;">
+                                {% if log.is_anomaly %}Anomalía Detectada{% else %}Normalidad{% endif %}
+                            </span>
+                        </div>
+                        
+                        <div class="toggle-icon">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contenido Expandido -->
+                <div class="xai-accordion-content">
+                    <div class="xai-accordion-body">
+                        <div class="row g-4">
+                            <!-- Columna Izquierda: Diagnóstico e Interpretación -->
+                            <div class="col-lg-7">
+                                <div class="glass-card mb-3" style="background: rgba(0, 210, 255, 0.02); border-color: rgba(255,255,255,0.04); padding: 20px;">
+                                    <h6 class="text-info fw-bold mb-3 d-flex align-items-center">
+                                        <i class="fas fa-user-md me-2"></i>🔬 Diagnóstico de Inferencia del Sistema
+                                    </h6>
+                                    <div class="text-white pl-1" style="font-size: 0.88rem; line-height: 1.6; color: rgba(255,255,255,0.9) !important;">
+                                        {{ log.explicacion_texto|safe }}
+                                    </div>
+                                </div>
+                                
+                                <div class="glass-card mb-0" style="background: rgba(46, 204, 113, 0.03); border-color: rgba(46, 204, 113, 0.15); padding: 18px;">
+                                    <h6 class="text-success fw-bold mb-2 d-flex align-items-center" style="color: #2ecc71 !important;">
+                                        <i class="fas fa-shield-alt me-2"></i>🛡️ Acción Táctica de Mitigación Sugerida
+                                    </h6>
+                                    <p class="mb-0 text-white-50" style="font-size: 0.85rem;">
+                                        {{ log.accion_recomendada }}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Columna Derecha: Contribución SHAP y Características -->
+                            <div class="col-lg-5">
+                                <div class="glass-card mb-3" style="background: rgba(0, 0, 0, 0.2); border-color: rgba(255,255,255,0.04); padding: 20px;">
+                                    <h6 class="text-warning fw-bold mb-3 d-flex align-items-center" style="color: #f39c12 !important;">
+                                        <i class="fas fa-chart-bar me-2"></i>📊 Contribución de Factores (SHAP)
+                                    </h6>
+                                    
+                                    <div class="shap-bars-wrapper">
+                                        {% for name, val in log.valores_shap.items %}
+                                        <div class="shap-bar-container">
+                                            <span class="shap-bar-label">
+                                                {% if name == 'lag_1' %}Última Hora
+                                                {% elif name == 'lag_2' %}Hace 2 Horas
+                                                {% elif name == 'lag_24' %}Ciclo Ayer (24h)
+                                                {% elif name == 'rolling_mean_3' %}Tendencia 3h
+                                                {% elif name == 'rolling_mean_6' %}Inercia 6h
+                                                {% elif name == 'hour' %}Hora del Día
+                                                {% elif name == 'dayofweek' %}Día de la Semana
+                                                {% else %}{{ name }}{% endif %}
+                                            </span>
+                                            <div class="shap-bar-track">
+                                                <div class="shap-bar-fill {% if val > 0 %}shap-bar-fill-positive{% else %}shap-bar-fill-negative{% endif %}" 
+                                                     data-value="{{ val }}" style="width: 0%;"></div>
+                                            </div>
+                                            <span class="shap-bar-value {% if val > 0 %}text-shap-pos{% else %}text-shap-neg{% endif %}">
+                                                {% if val > 0 %}+{% endif %}{{ val|floatformat:2 }}%
+                                            </span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <small class="text-white-50 d-block mt-2" style="font-size: 0.65rem; text-align: justify; line-height: 1.3;">
+                                        *Los valores de Shapley (SHAP) indican el peso con el que cada factor de serie temporal desvió la predicción del consumo de CPU con respecto al comportamiento base del modelo.
+                                    </small>
+                                </div>
+                                
+                                <div class="glass-card mb-0" style="background: rgba(255, 255, 255, 0.01); border-color: rgba(255,255,255,0.03); padding: 18px;">
+                                    <h6 class="text-info fw-bold mb-2 d-flex align-items-center" style="font-size: 0.8rem;">
+                                        <i class="fas fa-list-ul me-2"></i>📋 Características de Entrada
+                                    </h6>
+                                    
+                                    <div class="param-grid">
+                                        {% for name, val in log.features_usadas.items %}
+                                        <div class="param-card">
+                                            <div class="param-card-label">
+                                                {% if name == 'lag_1' %}CPU lag1
+                                                {% elif name == 'lag_2' %}CPU lag2
+                                                {% elif name == 'lag_24' %}CPU lag24
+                                                {% elif name == 'rolling_mean_3' %}Media 3h
+                                                {% elif name == 'rolling_mean_6' %}Media 6h
+                                                {% elif name == 'hour' %}Hora
+                                                {% elif name == 'dayofweek' %}Día
+                                                {% else %}{{ name }}{% endif %}
+                                            </div>
+                                            <div class="param-card-value">
+                                                {% if name == 'hour' or name == 'dayofweek' %}
+                                                    {{ val|floatformat:0 }}
+                                                {% else %}
+                                                    {{ val|floatformat:1 }}%
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5 text-white-50">
+                <i class="fas fa-history mb-2 fs-3 text-muted"></i>
+                <p class="mb-0" style="font-size: 0.88rem;">No hay registros históricos de inferencia XAI en la base de datos.</p>
+                <small class="text-white-50">Los registros aparecerán de forma automática cuando el agente predictivo de SentinelNexus realice el próximo ciclo.</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Script de Control Accordion XAI -->
+    <script>
+        function toggleXaiItem(elementId) {
+            const item = document.getElementById(elementId);
+            const isCurrentlyExpanded = item.classList.contains('expanded');
+            
+            // Cerrar todos los demás acordiones
+            document.querySelectorAll('.xai-accordion-item').forEach(el => {
+                el.classList.remove('expanded');
+                // Reiniciar el ancho de las barras SHAP de los cerrados
+                el.querySelectorAll('.shap-bar-fill').forEach(bar => {
+                    bar.style.width = '0%';
+                });
+            });
+            
+            if (!isCurrentlyExpanded) {
+                item.classList.add('expanded');
+                animateShapBars(elementId);
+            }
+        }
+        
+        function animateShapBars(itemId) {
+            const item = document.getElementById(itemId);
+            if (!item.classList.contains('expanded')) return;
+            
+            const bars = item.querySelectorAll('.shap-bar-fill');
+            
+            // Encontrar el valor absoluto máximo para el escalado visual proporcional
+            let maxVal = 0.01;
+            bars.forEach(bar => {
+                const val = Math.abs(parseFloat(bar.getAttribute('data-value')));
+                if (val > maxVal) maxVal = val;
+            });
+            
+            // Asignar el ancho animado dinámicamente
+            bars.forEach(bar => {
+                const val = parseFloat(bar.getAttribute('data-value'));
+                const pct = (Math.abs(val) / maxVal) * 100;
+                setTimeout(() => {
+                    bar.style.width = pct + '%';
+                }, 100);
+            });
+        }
+
+        function runMlTrainingPipeline() {
+            const btn = document.getElementById('btn-trigger-forecasting');
+            const icon = document.getElementById('icon-trigger-forecasting');
+            const text = document.getElementById('text-trigger-forecasting');
+            
+            if (btn) btn.disabled = true;
+            if (icon) icon.className = "fas fa-spinner fa-spin me-2";
+            if (text) text.innerText = "Entrenando Modelos ML...";
+            
+            fetch('/api/trigger-forecasting/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    if (text) text.innerText = "¡Entrenamiento Completado!";
+                    setTimeout(() => {
+                        location.reload();
+                    }, 800);
+                } else {
+                    alert('Error al entrenar modelos: ' + data.message);
+                    if (btn) btn.disabled = false;
+                    if (icon) icon.className = "fas fa-brain me-2";
+                    if (text) text.innerText = "Actualizar Datos";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Error en conexión al servidor.');
+                if (btn) btn.disabled = false;
+                if (icon) icon.className = "fas fa-brain me-2";
+                if (text) text.innerText = "Actualizar Datos";
+            });
+        }
+    </script>
 
 </div>
 {% endblock %}

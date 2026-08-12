@@ -106,5 +106,5 @@ urlpatterns = [
     path('api/server/<int:server_id>/vms/', views.get_server_vms, name='server_vms'),
 
     path('api/vms/metrics/', views.vms_metrics_api, name='vms_metrics_api'),
-    
+    path('api/trigger-forecasting/', views.trigger_forecasting_training, name='trigger_forecasting'),
 ]
