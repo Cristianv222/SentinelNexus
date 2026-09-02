@@ -677,13 +677,16 @@
                                         {% for name, val in log.valores_shap.items %}
                                         <div class="shap-bar-container">
                                             <span class="shap-bar-label">
-                                                {% if name == 'lag_1' %}Última Hora
+                                                {% if name == 'lag_1' %}Hace 1 Hora
                                                 {% elif name == 'lag_2' %}Hace 2 Horas
-                                                {% elif name == 'lag_24' %}Ciclo Ayer (24h)
-                                                {% elif name == 'rolling_mean_3' %}Tendencia 3h
-                                                {% elif name == 'rolling_mean_6' %}Inercia 6h
-                                                {% elif name == 'hour' %}Hora del Día
-                                                {% elif name == 'dayofweek' %}Día de la Semana
+                                                {% elif name == 'lag_3' %}Hace 3 Horas
+                                                {% elif name == 'lag_24' %}Misma Hora Ayer (24h)
+                                                {% elif name == 'diff_1_2' %}Cambio Reciente de Carga
+                                                {% elif name == 'rolling_mean_3' %}Promedio Últs. 3 Horas
+                                                {% elif name == 'rolling_mean_6' %}Tendencia Últs. 6 Horas
+                                                {% elif name == 'rolling_std_3' %}Variabilidad / Volatilidad
+                                                {% elif name == 'hour' or name == 'hour_sin' or name == 'hour_cos' %}Hora del Día (Patrón)
+                                                {% elif name == 'dayofweek' or name == 'day_sin' or name == 'day_cos' %}Día de la Semana
                                                 {% else %}{{ name }}{% endif %}
                                             </span>
                                             <div class="shap-bar-track">
@@ -696,32 +699,37 @@
                                         </div>
                                         {% endfor %}
                                     </div>
-                                    <small class="text-white-50 d-block mt-2" style="font-size: 0.65rem; text-align: justify; line-height: 1.3;">
-                                        *Los valores de Shapley (SHAP) indican el peso con el que cada factor de serie temporal desvió la predicción del consumo de CPU con respecto al comportamiento base del modelo.
+                                    <small class="text-white-50 d-block mt-2" style="font-size: 0.68rem; text-align: justify; line-height: 1.3;">
+                                        *Las barras indican cuánto empuja cada factor el consumo estimado: las <span class="text-warning">barras naranjas</span> aumentan la estimación y las <span class="text-success">barras verdes</span> la reducen o estabilizan.
                                     </small>
                                 </div>
                                 
                                 <div class="glass-card mb-0" style="background: rgba(255, 255, 255, 0.01); border-color: rgba(255,255,255,0.03); padding: 18px;">
                                     <h6 class="text-info fw-bold mb-2 d-flex align-items-center" style="font-size: 0.8rem;">
-                                        <i class="fas fa-list-ul me-2"></i>📋 Características de Entrada
+                                        <i class="fas fa-list-ul me-2"></i>📋 Datos Evaluados por el Sistema
                                     </h6>
                                     
                                     <div class="param-grid">
                                         {% for name, val in log.features_usadas.items %}
                                         <div class="param-card">
                                             <div class="param-card-label">
-                                                {% if name == 'lag_1' %}CPU lag1
-                                                {% elif name == 'lag_2' %}CPU lag2
-                                                {% elif name == 'lag_24' %}CPU lag24
-                                                {% elif name == 'rolling_mean_3' %}Media 3h
-                                                {% elif name == 'rolling_mean_6' %}Media 6h
-                                                {% elif name == 'hour' %}Hora
-                                                {% elif name == 'dayofweek' %}Día
+                                                {% if name == 'lag_1' %}Hace 1 hora
+                                                {% elif name == 'lag_2' %}Hace 2 horas
+                                                {% elif name == 'lag_3' %}Hace 3 horas
+                                                {% elif name == 'lag_24' %}Ayer misma hora
+                                                {% elif name == 'diff_1_2' %}Cambio reciente
+                                                {% elif name == 'rolling_mean_3' %}Promedio 3h
+                                                {% elif name == 'rolling_mean_6' %}Promedio 6h
+                                                {% elif name == 'rolling_std_3' %}Variabilidad
+                                                {% elif name == 'hour' or name == 'hour_sin' or name == 'hour_cos' %}Hora del día
+                                                {% elif name == 'dayofweek' or name == 'day_sin' or name == 'day_cos' %}Día semana
                                                 {% else %}{{ name }}{% endif %}
                                             </div>
                                             <div class="param-card-value">
                                                 {% if name == 'hour' or name == 'dayofweek' %}
                                                     {{ val|floatformat:0 }}
+                                                {% elif name == 'hour_sin' or name == 'hour_cos' or name == 'day_sin' or name == 'day_cos' %}
+                                                    {{ val|floatformat:2 }}
                                                 {% else %}
                                                     {{ val|floatformat:1 }}%
                                                 {% endif %}
@@ -745,47 +753,118 @@
         </div>
     </div>
 
-    <!-- Script de Control Accordion XAI -->
+    <!-- Script de Control Accordion XAI & Anime.js Animations -->
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof anime === 'undefined') return;
+
+            // 1. Animación de entrada escalonada (Stagger) para las tarjetas principal
+            anime({
+                targets: '.glass-card',
+                translateY: [25, 0],
+                opacity: [0, 1],
+                delay: anime.stagger(100),
+                duration: 800,
+                easing: 'easeOutCubic'
+            });
+
+            // 2. Conteo progresivo fluido (Count-Up) para las tarjetas KPI de métricas
+            const kpiElements = document.querySelectorAll('.glass-card h4');
+            kpiElements.forEach(el => {
+                const rawText = el.innerText.trim();
+                const numMatch = rawText.match(/([+-]?\d+\.?\d*)/);
+                if (numMatch) {
+                    const targetNum = parseFloat(numMatch[0]);
+                    const hasDecimals = rawText.includes('.');
+                    const decimalPlaces = hasDecimals ? (rawText.split('.')[1] ? rawText.split('.')[1].replace(/[^0-9]/g, '').length : 2) : 0;
+                    const prefix = rawText.startsWith('±') ? '±' : '';
+                    const suffix = rawText.includes('%') ? '%' : (rawText.includes('Instancias') ? ' Instancias' : '');
+
+                    let dummyObj = { val: 0 };
+                    anime({
+                        targets: dummyObj,
+                        val: targetNum,
+                        duration: 1500,
+                        easing: 'easeOutExpo',
+                        update: function () {
+                            el.innerText = prefix + dummyObj.val.toFixed(decimalPlaces) + suffix;
+                        }
+                    });
+                }
+            });
+
+            // 3. Animación de deslizamiento lateral para los logs XAI en vivo
+            anime({
+                targets: '.xai-log-card',
+                translateX: [-20, 0],
+                opacity: [0, 1],
+                delay: anime.stagger(70),
+                duration: 600,
+                easing: 'easeOutQuad'
+            });
+
+            // 4. Entrada sutil para el historial de acordeón
+            anime({
+                targets: '.xai-accordion-item',
+                translateY: [15, 0],
+                opacity: [0, 1],
+                delay: anime.stagger(80),
+                duration: 700,
+                easing: 'easeOutCubic'
+            });
+        });
+
         function toggleXaiItem(elementId) {
             const item = document.getElementById(elementId);
             const isCurrentlyExpanded = item.classList.contains('expanded');
-            
+
             // Cerrar todos los demás acordiones
             document.querySelectorAll('.xai-accordion-item').forEach(el => {
                 el.classList.remove('expanded');
-                // Reiniciar el ancho de las barras SHAP de los cerrados
                 el.querySelectorAll('.shap-bar-fill').forEach(bar => {
                     bar.style.width = '0%';
                 });
             });
-            
+
             if (!isCurrentlyExpanded) {
                 item.classList.add('expanded');
                 animateShapBars(elementId);
             }
         }
-        
+
         function animateShapBars(itemId) {
             const item = document.getElementById(itemId);
             if (!item.classList.contains('expanded')) return;
-            
+
             const bars = item.querySelectorAll('.shap-bar-fill');
-            
-            // Encontrar el valor absoluto máximo para el escalado visual proporcional
             let maxVal = 0.01;
             bars.forEach(bar => {
                 const val = Math.abs(parseFloat(bar.getAttribute('data-value')));
                 if (val > maxVal) maxVal = val;
             });
-            
-            // Asignar el ancho animado dinámicamente
-            bars.forEach(bar => {
+
+            // Animación fluida con resorte/elasticidad usando Anime.js para las barras SHAP
+            bars.forEach((bar, index) => {
                 const val = parseFloat(bar.getAttribute('data-value'));
                 const pct = (Math.abs(val) / maxVal) * 100;
-                setTimeout(() => {
-                    bar.style.width = pct + '%';
-                }, 100);
+
+                anime({
+                    targets: bar,
+                    width: [0, pct + '%'],
+                    duration: 1200,
+                    delay: index * 50,
+                    easing: 'easeOutElastic(1, .7)'
+                });
+            });
+
+            // Animación pop-in escalonada para las tarjetas de parámetros
+            anime({
+                targets: item.querySelectorAll('.param-card'),
+                scale: [0.8, 1],
+                opacity: [0, 1],
+                delay: anime.stagger(40, { start: 200 }),
+                duration: 500,
+                easing: 'easeOutBack'
             });
         }
 
@@ -793,11 +872,11 @@
             const btn = document.getElementById('btn-trigger-forecasting');
             const icon = document.getElementById('icon-trigger-forecasting');
             const text = document.getElementById('text-trigger-forecasting');
-            
+
             if (btn) btn.disabled = true;
             if (icon) icon.className = "fas fa-spinner fa-spin me-2";
             if (text) text.innerText = "Entrenando Modelos ML...";
-            
+
             fetch('/api/trigger-forecasting/', {
                 method: 'POST',
                 headers: {
@@ -805,27 +884,27 @@
                     'Content-Type': 'application/json'
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    if (text) text.innerText = "¡Entrenamiento Completado!";
-                    setTimeout(() => {
-                        location.reload();
-                    }, 800);
-                } else {
-                    alert('Error al entrenar modelos: ' + data.message);
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (text) text.innerText = "¡Entrenamiento Completado!";
+                        setTimeout(() => {
+                            location.reload();
+                        }, 800);
+                    } else {
+                        alert('Error al entrenar modelos: ' + data.message);
+                        if (btn) btn.disabled = false;
+                        if (icon) icon.className = "fas fa-brain me-2";
+                        if (text) text.innerText = "Actualizar Datos";
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Error en conexión al servidor.');
                     if (btn) btn.disabled = false;
                     if (icon) icon.className = "fas fa-brain me-2";
                     if (text) text.innerText = "Actualizar Datos";
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                alert('Error en conexión al servidor.');
-                if (btn) btn.disabled = false;
-                if (icon) icon.className = "fas fa-brain me-2";
-                if (text) text.innerText = "Actualizar Datos";
-            });
+                });
         }
     </script>
 

@@ -326,9 +326,10 @@ JAZZMIN_SETTINGS = {
 }
 
 # --- CONFIGURACION PROXMOX ---
+# Credenciales leídas desde .env (NUNCA hardcodear contraseñas en el código)
 PROXMOX = {
-    'host': '10.100.100.40',     # <--- Pon la IP de tu Proxmox Físico
-    'user': 'root@pam',          # <--- Usamos root para ir a la segura
-    'password': 'Andres_zabala1983', # <--- ¡Pon la clave real aquí!
+    'host': os.environ.get('PROXMOX_NODE1_HOST', '10.100.100.40'),
+    'user': os.environ.get('PROXMOX_NODE1_USER', 'root@pam'),
+    'password': os.environ.get('PROXMOX_NODE1_PASSWORD', ''),
     'verify_ssl': False
 }
